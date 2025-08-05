@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>synesthesiax</name>
+  <version>0.1.0</version>
+  <description>The synesthesiax package projects point clouds onto semantic images and publishes colored clouds.</description>
+
+  <maintainer email="your.email@example.com">Your Name</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <build_depend>rclcpp</build_depend>
+  <build_depend>sensor_msgs</build_depend>
+  <build_depend>cv_bridge</build_depend>
+  <build_depend>pcl_conversions</build_depend>
+  <build_depend>pcl_ros</build_depend>
+  <build_depend>message_filters</build_depend>
+
+  <exec_depend>rclcpp</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>pcl_conversions</exec_depend>
+  <exec_depend>pcl_ros</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+
+  <exec_depend>ament_index_cpp</exec_depend>
+
+  <export>
+  </export>
+</package>

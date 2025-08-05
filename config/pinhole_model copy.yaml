@@ -1,0 +1,23 @@
+# Intrinsic parameters of the RGB camera (3x4 matrix).
+# The matrix includes the camera intrinsics (focal lengths and principal point)
+# in the standard form:
+# [ fx  0  cx 
+#   0  fy  cy 
+#   0   0   1]
+camera_matrix: [659.29813, 0.0,        760.64067, 
+                0.0,       662.57773,  543.84931, 
+                0.0,       0.0,              1.0]
+
+# Rotation matrix (3x3) from LiDAR frame to camera frame.
+# Defines the orientation of the LiDAR with respect to the camera.
+rlc: [-0.1533276, -0.98776117,  0.02860976,
+       0.04630053, -0.0361014,  -0.99827499,
+       0.98709012, -0.15173846,  0.05126921]
+
+# Translation vector (3x1) from LiDAR frame to camera frame (in meters).
+# Represents the position offset between the LiDAR and the camera.
+tlc: [0.28564802, 1.01355072, -0.9722258]
+
+# Distortion coefficients of the camera lens.
+# Format: [k1, k2, p1, p2, k3] for radial and tangential distortion.
+d: [-0.193406, 0.026607, 0.001749, -0.000172, 0.0]
