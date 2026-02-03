@@ -55,11 +55,11 @@ public:
         );
 
         // Create publishers
-        pc_on_img_pub_ = this->create_publisher<sensor_msgs::msg::Image>("cloud_onto_img", 1);
-        pc_color_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("semantic_cloud", 1);
-        pub_obstacles_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("obstacles", 1);
-        pub_traversable_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("traversable", 1);
-        pub_depth_ = this->create_publisher<sensor_msgs::msg::Image>("depth_map", 1);
+        pc_on_img_pub_ = this->create_publisher<sensor_msgs::msg::Image>("/synesthesiax/cloud_onto_img", 1);
+        pc_color_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/synesthesiax/semantic_cloud", 1);
+        pub_obstacles_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/synesthesiax/obstacles", 1);
+        pub_traversable_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/synesthesiax/traversable", 1);
+        pub_depth_ = this->create_publisher<sensor_msgs::msg::Image>("/synesthesiax/depth_map", 1);
 
         // Set up message filters and synchronization
         pc_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>(this, cloud_topic);
