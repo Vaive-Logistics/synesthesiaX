@@ -26,8 +26,24 @@ add_executable(synesthesiax_node
   src/Projector.cpp
 )
 
+# Declare the executable
+add_executable(synesthesiax_notsync_node
+  src/synesthesiax_notsync.cpp
+  src/Projector.cpp
+)
+
 # Link libraries
 ament_target_dependencies(synesthesiax_node
+  rclcpp
+  sensor_msgs
+  cv_bridge
+  pcl_conversions
+  pcl_ros
+  message_filters
+)
+
+# Link libraries
+ament_target_dependencies(synesthesiax_notsync_node
   rclcpp
   sensor_msgs
   cv_bridge
@@ -40,8 +56,15 @@ target_link_libraries(synesthesiax_node
   ${OpenCV_LIBRARIES}
 )
 
+target_link_libraries(synesthesiax_notsync_node
+  ${OpenCV_LIBRARIES}
+)
+
 # Install the binary
 install(TARGETS synesthesiax_node
+  DESTINATION lib/${PROJECT_NAME}
+)
+install(TARGETS synesthesiax_notsync_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
