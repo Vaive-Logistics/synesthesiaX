@@ -74,8 +74,8 @@ private:
 
   static constexpr int CALIB_W = 1440;
   static constexpr int CALIB_H = 1080;
-  static constexpr int LABEL_W = 500;
-  static constexpr int LABEL_H = 500;
+  static constexpr int LABEL_W = 1440;
+  static constexpr int LABEL_H = 1080;
 
   // 3D points and their 2D projections
   std::vector<cv::Point3f> pts3d_;
