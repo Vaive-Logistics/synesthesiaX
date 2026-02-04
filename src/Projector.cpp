@@ -57,13 +57,13 @@ bool Projector::init(
     return true;
 }
 
-void Projector::project_cloud_onto_image(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg,
+bool Projector::project_cloud_onto_image(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg,
                                          const sensor_msgs::msg::Image::ConstSharedPtr& image_msg)
 {
     if (!cloud_msg || !image_msg)
     {
-    std::cerr << "[Projector::project_cloud_onto_image] Received null cloud or image message" << std::endl;
-    return;
+    std::cout << "[Projector::project_cloud_onto_image] Received null cloud or image message" << std::endl;
+    return false;
     }
 
     // 1. Convert input image to label matrix
@@ -71,8 +71,8 @@ void Projector::project_cloud_onto_image(const sensor_msgs::msg::PointCloud2::Co
     try {
     cv_ptr = cv_bridge::toCvShare(image_msg);
     } catch (const cv_bridge::Exception& e) {
-        std::cerr << "[Projector::project_cloud_onto_image] cv_bridge error: " << e.what() << std::endl;
-        return;
+        std::cout << "[Projector::project_cloud_onto_image] cv_bridge error: " << e.what() << std::endl;
+        return false;
     }
     cv_ptr->image.convertTo(labels_, CV_8UC1);
 
@@ -111,6 +111,8 @@ void Projector::project_cloud_onto_image(const sensor_msgs::msg::PointCloud2::Co
     this->createDepthBuffers();
 
     overlay_updated_ = false;  // Mark overlay cache as dirty
+		
+		return true;
 }
 
 // ** Private methods **

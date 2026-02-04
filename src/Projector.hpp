@@ -35,7 +35,7 @@ public:
    * @param cloud_msg Input point cloud message.
    * @param image_msg Input semantic label image message.
    */
-  void project_cloud_onto_image(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg,
+  bool project_cloud_onto_image(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg,
                                 const sensor_msgs::msg::Image::ConstSharedPtr& image_msg);
 
   /**

@@ -72,7 +72,10 @@ private:
     {
         auto start = std::chrono::high_resolution_clock::now();
 
-        projector_.project_cloud_onto_image(cloud_msg, image_msg);
+        if(!projector_.project_cloud_onto_image(cloud_msg, image_msg)){
+          RCLCPP_INFO(this->get_logger(), "Projector called without image or cloud");
+          return;
+        }
 
         pcl::PointCloud<pcl::PointXYZRGB> semanticCloud, travCloud, obstacleCloud;
         projector_.getSemanticClouds(semanticCloud, travCloud, obstacleCloud);

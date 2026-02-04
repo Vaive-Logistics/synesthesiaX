@@ -12,7 +12,7 @@ class SynesthesiaxNotSyncedNode : public rclcpp::Node
 {
 public:
     SynesthesiaxNotSyncedNode()
-    : Node("synesthesiax_notsync")
+    : Node("synesthesiax")
     {
         // Declare and read parameters
         this->declare_parameter<std::string>("cloud_topic", "/lidar/points");
@@ -73,7 +73,10 @@ private:
     {
         auto start = std::chrono::high_resolution_clock::now();
 
-        projector_.project_cloud_onto_image(cloud_msg, last_image_);
+        if(!projector_.project_cloud_onto_image(cloud_msg, last_image_)){
+          RCLCPP_INFO(this->get_logger(), "Projector called without image");
+          return;
+				}
 
         pcl::PointCloud<pcl::PointXYZRGB> semanticCloud, travCloud, obstacleCloud;
         projector_.getSemanticClouds(semanticCloud, travCloud, obstacleCloud);

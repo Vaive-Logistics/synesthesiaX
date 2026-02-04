@@ -16,7 +16,7 @@ def generate_launch_description():
         Node(
             package='synesthesiax',
             executable='synesthesiax_notsync_node',
-            name='synesthesiax_notsync_node',
+            name='synesthesiax_node',
             output='screen',
             parameters=[
                 # Load calibration parameters from YAML
@@ -28,7 +28,7 @@ def generate_launch_description():
                     'max_ang_fov': 60.0,
                     'min_ang_fov': -60.0,
                     'cloud_topic': '/ona2/sensors/pandar_front/cloud',
-                    'img_topic': '/semantic_inference/semantic/image_raw'
+                    'img_topic': '/semantic/image_raw'
                 }
             ]
         )
