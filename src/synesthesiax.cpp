@@ -11,9 +11,6 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
-using std::placeholders::_1;
-using std::placeholders::_2;
-
 class SynesthesiaxNode : public rclcpp::Node
 {
 public:
@@ -66,7 +63,7 @@ public:
         img_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(this, img_topic);
 
         sync_ = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(10), *pc_sub_, *img_sub_);
-        sync_->registerCallback(std::bind(&SynesthesiaxNode::callback, this, _1, _2));
+        sync_->registerCallback(std::bind(&SynesthesiaxNode::callback, this, std::placeholders::_1, std::placeholders::_2));
     }
 
 private:
