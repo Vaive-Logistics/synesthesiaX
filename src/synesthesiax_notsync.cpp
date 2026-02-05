@@ -17,10 +17,12 @@ public:
         // Declare and read parameters
         this->declare_parameter<std::string>("cloud_topic", "/lidar/points");
         this->declare_parameter<std::string>("img_topic", "/camera/labels");
+        this->declare_parameter<std::string>("raw_img_topic", "/camera/raw");
 
         std::string cloud_topic = this->get_parameter("cloud_topic").as_string();
         std::string img_topic = this->get_parameter("img_topic").as_string();
-
+        std::string raw_img_topic = this->get_parameter("raw_img_topic").as_string();
+        
         // Initialize projector with node parameters
         this->declare_parameter("min_range", 0.5);
         this->declare_parameter("max_range", 30.0);
@@ -53,7 +55,6 @@ public:
         pc_color_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/synesthesiax/semantic_cloud", 1);
         pub_obstacles_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/synesthesiax/obstacles", 1);
         pub_traversable_ = this->create_publisher<sensor_msgs::msg::PointCloud2>("/synesthesiax/traversable", 1);
-        pub_depth_ = this->create_publisher<sensor_msgs::msg::Image>("/synesthesiax/depth_map", 1);
 
         // Set up subscribers
         pc_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
@@ -66,6 +67,11 @@ public:
                     1,
                     std::bind(&SynesthesiaxNotSyncedNode::img_callback, this, std::placeholders::_1)
                 );
+        raw_img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+		     raw_img_topic,
+		     1,
+		     std::bind(&SynesthesiaxNotSyncedNode::raw_img_callback, this, std::placeholders::_1)
+		 );
     }
 
 private:
@@ -80,7 +86,7 @@ private:
 
         pcl::PointCloud<pcl::PointXYZRGB> semanticCloud, travCloud, obstacleCloud;
         projector_.getSemanticClouds(semanticCloud, travCloud, obstacleCloud);
-        const cv::Mat& overlay = projector_.getOverlay();
+        const cv::Mat& overlay = projector_.getOverlay(last_raw_img_);
 
         // Publish overlay image
         auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", overlay).toImageMsg();
@@ -109,23 +115,28 @@ private:
         RCLCPP_INFO_ONCE(this->get_logger(), "Receiving images...");
         last_image_ = msg;
     }
+    
+    void raw_img_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg)
+    {
+        RCLCPP_INFO_ONCE(this->get_logger(), "Receiving raw images...");
+        last_raw_img_ = msg;
+    }
 
     // ROS2 publishers
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pc_on_img_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pc_color_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_obstacles_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub_traversable_;
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pub_depth_;
 
     // Projector logic
     Projector projector_;
 
     // Last image msg
-    sensor_msgs::msg::Image::ConstSharedPtr last_image_;
+    sensor_msgs::msg::Image::ConstSharedPtr last_image_, last_raw_img_;
 
     // Subscribers
     rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr pc_sub_;
-    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr img_sub_, raw_img_sub_;
 };
 
 int main(int argc, char **argv)

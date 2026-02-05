@@ -175,32 +175,121 @@ void Projector::createDepthBuffers()
     }
 }
 
-const cv::Mat& Projector::getOverlay()
+const cv::Mat& Projector::getOverlay(const sensor_msgs::msg::Image::ConstSharedPtr& raw_img_msg)
 {
     if (overlay_updated_)
         return overlay_cache_;
 
-    overlay_cache_ = cv::Mat::zeros(LABEL_H, LABEL_W, CV_8UC3);
+    // -----------------------------
+    // 1) Parámetros "low quality"
+    // -----------------------------
+    // Downscale factor: 2, 3, 4... (más grande => menos resolución => menos red)
+    const int DS = 4;
 
+    const int outW = std::max(1, LABEL_W / DS);
+    const int outH = std::max(1, LABEL_H / DS);
+
+    // -----------------------------
+    // 2) Base: raw image -> BGR -> resize a (outW,outH)
+    // -----------------------------
+    cv::Mat base_small(outH, outW, CV_8UC3, cv::Scalar(0, 0, 0));
+
+    if (raw_img_msg)
+    {
+        cv_bridge::CvImageConstPtr raw_ptr;
+        try {
+            raw_ptr = cv_bridge::toCvShare(raw_img_msg);
+        } catch (const cv_bridge::Exception& e) {
+            std::cout << "[Projector::getOverlay] cv_bridge error (raw): " << e.what() << std::endl;
+            raw_ptr.reset();
+        }
+
+        if (raw_ptr)
+        {
+            cv::Mat raw_bgr;
+
+            // Intenta mantenerlo simple: si ya es 8UC3 lo usamos, si es mono lo pasamos a BGR
+            if (raw_ptr->image.type() == CV_8UC3) {
+                raw_bgr = raw_ptr->image;
+            } else if (raw_ptr->image.type() == CV_8UC1) {
+                cv::cvtColor(raw_ptr->image, raw_bgr, cv::COLOR_GRAY2BGR);
+            } else {
+                // Fallback: intenta convertir a 8UC3 (puede que no funcione para todos los encodings)
+                raw_ptr->image.convertTo(raw_bgr, CV_8UC3);
+            }
+
+            // Primero lo llevamos a tamaño label, luego downsample para que quede pixelado/ligero
+            cv::Mat raw_label;
+            if (raw_bgr.cols != LABEL_W || raw_bgr.rows != LABEL_H) {
+                cv::resize(raw_bgr, raw_label, cv::Size(LABEL_W, LABEL_H), 0, 0, cv::INTER_NEAREST);
+            } else {
+                raw_label = raw_bgr;
+            }
+
+            // Downsample: INTER_AREA suele ser buen compromiso
+            cv::resize(raw_label, base_small, cv::Size(outW, outH), 0, 0, cv::INTER_AREA);
+        }
+    }
+
+    // overlay_cache_ será la imagen final (pequeña)
+    overlay_cache_ = base_small.clone();
+
+    // -----------------------------
+    // 3) Dibujar círculos con radio ~ 1/depth
+    // -----------------------------
+    // Ajusta estos 3 valores a gusto:
+    const float r_min = 0.1f;     // radio mínimo en píxeles (en la imagen pequeña)
+    const float r_max = 2.0f;     // radio máximo en píxeles (en la imagen pequeña)
+    const float k_rad = 10.0f;    // ganancia del 1/depth  (más alto => círculos más grandes)
+
+    // Nota: depth_buf_ está en tamaño LABEL_W/H con Zc (float). idx_buf_ también.
+    // Vamos a recorrer la imagen "grande", pero dibujar en la pequeña.
     for (int v = 0; v < LABEL_H; ++v)
     {
         for (int u = 0; u < LABEL_W; ++u)
         {
             const int idx = idx_buf_.at<int>(v, u);
             if (idx < 0) continue;
-            const uchar label = labels_.at<uchar>(v, u);
 
-            int label_idx = label;
+            // Coordenadas en imagen pequeña
+            const int us = u / DS;
+            const int vs = v / DS;
+            if (us < 0 || us >= outW || vs < 0 || vs >= outH)
+                continue;
+
+            // Profundidad para radio
+            const float z = depth_buf_.at<float>(v, u);
+            if (!std::isfinite(z) || z <= 0.0f)
+                continue;
+
+            // label -> color
+            int label_idx = static_cast<int>(labels_.at<uchar>(v, u));
             if (label_idx < 0 || label_idx >= semantic_lut_.cols)
                 label_idx = 0;
 
-            const cv::Vec3b& color = semantic_lut_.at<cv::Vec3b>(0, label_idx);
-            overlay_cache_.at<cv::Vec3b>(v, u) = color;
+            const cv::Vec3b& bgr = semantic_lut_.at<cv::Vec3b>(0, label_idx);
+
+            // Radio inversamente proporcional a z
+            float r = k_rad / z;
+            if (r < r_min) r = r_min;
+            if (r > r_max) r = r_max;
+
+            // Dibujar círculo relleno (thickness = -1)
+            cv::circle(
+                overlay_cache_,
+                cv::Point(us, vs),
+                static_cast<int>(std::round(r)),
+                cv::Scalar(bgr[0], bgr[1], bgr[2]),
+                -1,
+                cv::LINE_AA
+            );
         }
     }
+
     overlay_updated_ = true;
     return overlay_cache_;
 }
+
 
 void Projector::getSemanticClouds(
     pcl::PointCloud<pcl::PointXYZRGB>& semanticCloud,

@@ -48,7 +48,7 @@ public:
   /**
    * @brief Get semantic overlay image. Computes overlay lazily.
    */
-  const cv::Mat& getOverlay();
+  const cv::Mat& getOverlay(const sensor_msgs::msg::Image::ConstSharedPtr& raw_image_msg);
 
   /**
    * @brief Get the depth map of projected points.

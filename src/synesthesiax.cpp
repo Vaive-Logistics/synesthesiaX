@@ -20,10 +20,12 @@ public:
         // Declare and read parameters
         this->declare_parameter<std::string>("cloud_topic", "/lidar/points");
         this->declare_parameter<std::string>("img_topic", "/camera/labels");
+        this->declare_parameter<std::string>("raw_img_topic", "/camera/raw");
 
         std::string cloud_topic = this->get_parameter("cloud_topic").as_string();
         std::string img_topic = this->get_parameter("img_topic").as_string();
-
+        std::string raw_img_topic = this->get_parameter("raw_img_topic").as_string();
+        
         // Initialize projector with node parameters
         this->declare_parameter("min_range", 0.5);
         this->declare_parameter("max_range", 30.0);
@@ -64,6 +66,12 @@ public:
 
         sync_ = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(10), *pc_sub_, *img_sub_);
         sync_->registerCallback(std::bind(&SynesthesiaxNode::callback, this, std::placeholders::_1, std::placeholders::_2));
+
+        raw_img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+		     raw_img_topic,
+		     1,
+		     std::bind(&SynesthesiaxNode::raw_img_callback, this, std::placeholders::_1)
+		 );
     }
 
 private:
@@ -79,7 +87,7 @@ private:
 
         pcl::PointCloud<pcl::PointXYZRGB> semanticCloud, travCloud, obstacleCloud;
         projector_.getSemanticClouds(semanticCloud, travCloud, obstacleCloud);
-        const cv::Mat& overlay = projector_.getOverlay();
+        const cv::Mat& overlay = projector_.getOverlay(last_raw_img_);
 
         // Publish overlay image
         auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", overlay).toImageMsg();
@@ -103,6 +111,13 @@ private:
             std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
     }
 
+
+    void raw_img_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg)
+    {
+        RCLCPP_INFO_ONCE(this->get_logger(), "Receiving raw images...");
+        last_raw_img_ = msg;
+    }
+
     // ROS2 publishers
     rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr pc_on_img_pub_;
     rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pc_color_pub_;
@@ -119,6 +134,9 @@ private:
     std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>> pc_sub_;
     std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image>> img_sub_;
     std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> sync_;
+    rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr raw_img_sub_;
+    
+    sensor_msgs::msg::Image::ConstSharedPtr last_raw_img_;
 };
 
 int main(int argc, char **argv)

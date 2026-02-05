@@ -28,7 +28,8 @@ def generate_launch_description():
                     'max_ang_fov': 60.0,
                     'min_ang_fov': -60.0,
                     'cloud_topic': '/ona2/sensors/pandar_front/cloud',
-                    'img_topic': '/semantic/image_raw'
+                    'img_topic': '/semantic/image_raw',
+                    'raw_img_topic': '/ona2/sensors/flir_camera_front/image_raw'
                 }
             ]
         )
