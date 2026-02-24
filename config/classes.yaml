@@ -1,0 +1,12 @@
+classes:
+  - id: 0
+    name: dynamic
+    color_rgb: [255, 0, 0]    
+
+  - id: 1
+    name: obstacle
+    color_rgb: [0, 255, 0]    
+
+  - id: 2
+    name: traversable
+    color_rgb: [0, 0, 255]    

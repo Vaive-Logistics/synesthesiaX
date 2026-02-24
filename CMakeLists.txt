@@ -1,10 +1,24 @@
 cmake_minimum_required(VERSION 3.5)
 project(synesthesiax)
 
-# Compile as C++14 (you can upgrade to C++17/20 if needed)
-add_compile_options(-std=c++17)
+# -----------------------------
+# Default build type: Release
+# -----------------------------
+# (Only applies to single-config generators; colcon typically uses this path)
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+  set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
+endif()
 
-# Find required packages
+# -----------------------------
+# C++ standard
+# -----------------------------
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# -----------------------------
+# Dependencies
+# -----------------------------
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -13,37 +27,22 @@ find_package(pcl_conversions REQUIRED)
 find_package(pcl_ros REQUIRED)
 find_package(message_filters REQUIRED)
 find_package(OpenCV REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
-# Include directories
-include_directories(
-  include
-  ${OpenCV_INCLUDE_DIRS}
-)
-
-# Declare the executable
+# -----------------------------
+# Target
+# -----------------------------
 add_executable(synesthesiax_node
   src/synesthesiax.cpp
   src/Projector.cpp
 )
 
-# Declare the executable
-add_executable(synesthesiax_notsync_node
-  src/synesthesiax_notsync.cpp
-  src/Projector.cpp
+target_include_directories(synesthesiax_node PRIVATE
+  include
+  ${OpenCV_INCLUDE_DIRS}
 )
 
-# Link libraries
 ament_target_dependencies(synesthesiax_node
-  rclcpp
-  sensor_msgs
-  cv_bridge
-  pcl_conversions
-  pcl_ros
-  message_filters
-)
-
-# Link libraries
-ament_target_dependencies(synesthesiax_notsync_node
   rclcpp
   sensor_msgs
   cv_bridge
@@ -54,26 +53,20 @@ ament_target_dependencies(synesthesiax_notsync_node
 
 target_link_libraries(synesthesiax_node
   ${OpenCV_LIBRARIES}
+  yaml-cpp::yaml-cpp
 )
 
-target_link_libraries(synesthesiax_notsync_node
-  ${OpenCV_LIBRARIES}
-)
-
-# Install the binary
+# -----------------------------
+# Install
+# -----------------------------
 install(TARGETS synesthesiax_node
   DESTINATION lib/${PROJECT_NAME}
 )
-install(TARGETS synesthesiax_notsync_node
-  DESTINATION lib/${PROJECT_NAME}
-)
 
-# Install launch and config files
 install(DIRECTORY
   config
   launch
   DESTINATION share/${PROJECT_NAME}
 )
 
-# Export package
 ament_package()
