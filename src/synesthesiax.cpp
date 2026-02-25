@@ -1,4 +1,5 @@
 #include "Projector.hpp"
+#include "Utils.hpp"
 
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -13,13 +14,6 @@
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 
-#include <yaml-cpp/yaml.h>
-
-#include <unordered_map>
-#include <string>
-#include <vector>
-#include <chrono>
-
 class SynesthesiaxNode : public rclcpp::Node
 {
 public:
@@ -30,12 +24,12 @@ public:
         // Topics
         // -------------------------
         this->declare_parameter<std::string>("cloud_topic", "/lidar/points");
-        this->declare_parameter<std::string>("img_topic", "/camera/labels");
+        this->declare_parameter<std::string>("labels_img_topic", "/camera/labels");
         this->declare_parameter<std::string>("raw_img_topic", "/camera/raw");
 
-        const std::string cloud_topic   = this->get_parameter("cloud_topic").as_string();
-        const std::string img_topic     = this->get_parameter("img_topic").as_string();
-        const std::string raw_img_topic = this->get_parameter("raw_img_topic").as_string();
+        const std::string labels_img_topic = this->get_parameter("labels_img_topic").as_string();
+        const std::string cloud_topic      = this->get_parameter("cloud_topic").as_string();
+        const std::string raw_img_topic    = this->get_parameter("raw_img_topic").as_string();
 
         // -------------------------
         // Semantic classes config
@@ -43,10 +37,10 @@ public:
         this->declare_parameter<std::string>("classes_config", ""); // path to yaml
         this->declare_parameter<std::string>("class_cloud_topic_prefix", "/synesthesiax/class");
 
-        const std::string classes_cfg_path = this->get_parameter("classes_config").as_string();
+        const std::string classes_cfg_path  = this->get_parameter("classes_config").as_string();
         const std::string class_topic_prefix = this->get_parameter("class_cloud_topic_prefix").as_string();
 
-        classes_ = loadClassesFromYaml(classes_cfg_path);
+        classes_ = synesthesiax::loadClassesFromYaml(classes_cfg_path);
 
         if (classes_.empty())
         {
@@ -81,7 +75,7 @@ public:
             std::vector<double>(d.begin(), d.end()),
             std::vector<double>(rlc.begin(), rlc.end()),
             std::vector<double>(tlc.begin(), tlc.end()),
-            classes_ // <-- NEW
+            classes_
         );
 
         if (!ok)
@@ -115,96 +109,47 @@ public:
         // Subscriptions + sync
         // -------------------------
         pc_sub_  = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>(this, cloud_topic);
-        img_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(this, img_topic);
+        lab_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(this, labels_img_topic);
 
-        sync_ = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(10), *pc_sub_, *img_sub_);
-        sync_->registerCallback(std::bind(&SynesthesiaxNode::callback, this, std::placeholders::_1, std::placeholders::_2));
+        sync_ = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(10), *pc_sub_, *lab_sub_);
+        sync_->registerCallback(
+            std::bind(&SynesthesiaxNode::callback, this, std::placeholders::_1, std::placeholders::_2));
 
         raw_img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            raw_img_topic, rclcpp::SensorDataQoS(),
-            std::bind(&SynesthesiaxNode::raw_img_callback, this, std::placeholders::_1)
-        );
+            raw_img_topic, 1,
+            std::bind(&SynesthesiaxNode::raw_img_callback, this, std::placeholders::_1));
     }
 
 private:
-    static std::vector<Projector::SemanticClass> loadClassesFromYaml(const std::string& path)
-    {
-        std::vector<Projector::SemanticClass> out;
-
-        if (path.empty())
-        {
-            // No file provided -> empty => fatal in ctor
-            return out;
-        }
-
-        YAML::Node root;
-        try {
-            root = YAML::LoadFile(path);
-        } catch (const std::exception& e) {
-            throw std::runtime_error(std::string("Failed to load YAML file: ") + path + " : " + e.what());
-        }
-
-        if (!root["classes"] || !root["classes"].IsSequence())
-        {
-            throw std::runtime_error("YAML must contain a top-level 'classes:' sequence");
-        }
-
-        for (const auto& n : root["classes"])
-        {
-            if (!n["id"] || !n["name"] || !n["color_rgb"])
-                throw std::runtime_error("Each class must contain {id, name, color_rgb}");
-
-            const int id = n["id"].as<int>();
-            const std::string name = n["name"].as<std::string>();
-
-            const auto rgb = n["color_rgb"];
-            if (!rgb.IsSequence() || rgb.size() != 3)
-                throw std::runtime_error("color_rgb must be a list of 3 integers: [R,G,B]");
-
-            int r = rgb[0].as<int>();
-            int g = rgb[1].as<int>();
-            int b = rgb[2].as<int>();
-
-            auto clamp255 = [](int x) { return std::max(0, std::min(255, x)); };
-            r = clamp255(r); g = clamp255(g); b = clamp255(b);
-
-            Projector::SemanticClass c;
-            c.id = id;
-            c.name = name;
-            c.r = static_cast<uint8_t>(r);
-            c.g = static_cast<uint8_t>(g);
-            c.b = static_cast<uint8_t>(b);
-
-            out.push_back(c);
-        }
-
-        return out;
-    }
-
     void callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg,
-                  const sensor_msgs::msg::Image::ConstSharedPtr image_msg)
+                  const sensor_msgs::msg::Image::ConstSharedPtr labels_msg)
     {
         auto start = std::chrono::high_resolution_clock::now();
 
-        if (!projector_.project_cloud_onto_image(cloud_msg, image_msg))
+        if (!projector_.project_cloud_onto_image(cloud_msg, labels_msg))
         {
-            RCLCPP_WARN(this->get_logger(), "Projector called without image or cloud (or conversion failed).");
+            RCLCPP_WARN(this->get_logger(),
+                        "Projector called without image or cloud (or conversion failed).");
             return;
         }
 
-        // Get overlay + clouds
-        const cv::Mat& overlay = projector_.getOverlay(last_raw_img_);
+        const rclcpp::Time t_lab(labels_msg->header.stamp);
+        auto raw_opt = synesthesiax::getNearestRawImg(raw_img_buffer_, raw_mtx_, t_lab);
+        if (raw_opt.has_value()) {
 
+            const auto& raw_msg = raw_opt.value();
+            const cv::Mat& overlay = projector_.getOverlay(raw_msg);
+            
+            auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", overlay).toImageMsg();
+            img_msg->header = cloud_msg->header;
+            pc_on_img_pub_->publish(*img_msg);
+            
+        }
+        
         pcl::PointCloud<pcl::PointXYZRGB> semanticCloud;
         std::unordered_map<int, pcl::PointCloud<pcl::PointXYZRGB>> clouds_by_class;
         projector_.getSemanticClouds(semanticCloud, clouds_by_class);
 
-        // Publish overlay image
-        auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", overlay).toImageMsg();
-        img_msg->header = cloud_msg->header;
-        pc_on_img_pub_->publish(*img_msg);
-
-        // Publish full semantic cloud
         sensor_msgs::msg::PointCloud2 pc_color_msg;
         pcl::toROSMsg(semanticCloud, pc_color_msg);
         pc_color_msg.header = cloud_msg->header;
@@ -225,14 +170,21 @@ private:
         }
 
         auto end = std::chrono::high_resolution_clock::now();
-        RCLCPP_INFO(this->get_logger(), "Processing time: %ld ms",
-            std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count());
+        const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        RCLCPP_INFO(this->get_logger(), "Processing time %ld ms", ms);
     }
 
     void raw_img_callback(const sensor_msgs::msg::Image::ConstSharedPtr msg)
     {
+        {
+            std::lock_guard<std::mutex> lk(raw_mtx_);
+            raw_img_buffer_.push_back(msg);
+
+            while (raw_img_buffer_.size() > raw_buffer_size_)
+                raw_img_buffer_.pop_front();
+        }
+
         RCLCPP_INFO_ONCE(this->get_logger(), "Receiving raw images...");
-        last_raw_img_ = msg;
     }
 
     // Publishers
@@ -248,12 +200,14 @@ private:
     using SyncPolicy = message_filters::sync_policies::ApproximateTime<
         sensor_msgs::msg::PointCloud2, sensor_msgs::msg::Image>;
     std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>> pc_sub_;
-    std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image>> img_sub_;
+    std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image>> lab_sub_;
     std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> sync_;
 
-    // Raw image (not synced)
+    // Raw buffer
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr raw_img_sub_;
-    sensor_msgs::msg::Image::ConstSharedPtr last_raw_img_;
+    std::deque<sensor_msgs::msg::Image::ConstSharedPtr> raw_img_buffer_;
+    size_t raw_buffer_size_ = 100;
+    std::mutex raw_mtx_;
 };
 
 int main(int argc, char **argv)

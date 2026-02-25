@@ -1,34 +1,17 @@
 synesthesiax_node:
   ros__parameters:
     # Intrinsic parameters of the RGB camera (3×3 matrix, row-major)
-    camera_matrix: [725.37437, 0.0,       732.76380,
-                    0.0,      726.97205, 602.34755,
-                    0.0,        0.0,        1.0]
+    camera_matrix: [659.29813, 0.0,        760.64067, 
+                    0.0,       662.57773,  543.84931, 
+                    0.0,       0.0,              1.0]
 
     # Rotation matrix (3×3) from LiDAR frame to camera frame
     rlc: [-0.1533276, -0.98776117,  0.02860976,
-           0.04630053, -0.0361014, -0.99827499,
-           0.98709012, -0.15173846,  0.05126921]
+          0.04630053, -0.0361014,  -0.99827499,
+          0.98709012, -0.15173846,  0.05126921]
 
     # Translation vector (3×1) from LiDAR frame to camera frame (metres)
-    tlc: [0.28564802, 1.01355072, -0.97222580]
+    tlc: [0.28564802, 1.01355072, -0.9722258]
 
     # Distortion coefficients of the camera lens (k1, k2, p1, p2, k3)
-    d: [-0.28854236,  0.14511239, 0.00684763, -0.00234304, -0.04259238]
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    d: [-0.193406, 0.026607, 0.001749, -0.000172, 0.0]

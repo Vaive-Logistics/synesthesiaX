@@ -27,12 +27,12 @@ def generate_launch_description():
                 {
                     # --- node topics ---
                     'cloud_topic': '/ona2/sensors/pandar_front/cloud',
-                    'img_topic': '/semantic_inference_front/semantic_color/image_raw',
+                    'labels_img_topic': '/semantic_inference_front/semantic_color/image_raw',
                     'raw_img_topic': '/ona2/sensors/flir_camera_front/image_raw',   
 
                     # --- projector params ---
                     'max_range': 20.0,
-                    'min_range': 0.5,
+                    'min_range': 1.0,
                     'max_ang_fov': 60.0,
                     'min_ang_fov': -60.0,
 
