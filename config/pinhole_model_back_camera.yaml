@@ -1,0 +1,27 @@
+synesthesiax_node:
+  ros__parameters:
+
+    # yaml config file for Ona back camera
+    # Intrinsic parameters of the RGB camera (3×3 matrix, row-major)
+    camera_matrix: [687.70582, 0.0,        757.89175, 
+                0.0,       694.9585,         556.47313, 
+                0.0,       0.0,              1.0]
+
+    # Rotation matrix (3×3) from LiDAR frame to camera frame
+    #rlc: [0.08820831, 0.99475018,  0.0518784,
+    #      -0.04986668, 0.05642598,  -0.99716068,
+    #     -0.99485306, 0.08537085,  0.05458213]
+
+    # front rotation camera matrix 
+    rlc: [-0.1533276, -0.98776117,  0.02860976,
+          0.04630053, -0.0361014,  -0.99827499,
+          0.98709012, -0.15173846,  0.05126921]
+
+    # Translation vector (3×1) from LiDAR frame to camera frame (metres)
+    #tlc: [0.10931701, 0.74278015, -0.82156467]
+
+    # front translation camera matrix
+    tlc: [0.28564802, 1.01355072, -0.9722258]
+
+    # Distortion coefficients of the camera lens (k1, k2, p1, p2, k3)
+    d: [-0.213964, 0.035798, 0.000632, -0.002842, 0.0]
