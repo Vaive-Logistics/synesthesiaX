@@ -140,6 +140,7 @@ bool Projector::project_cloud_onto_image(const sensor_msgs::msg::PointCloud2::Co
     // 3) Project to 2D
     proj2d_.clear();
     cv::projectPoints(pts3d_, rvec_, tvec_, K_, distCoeffs_, proj2d_);
+    std::cout << proj2d_.size() << std::endl;
 
     // 4) z-buffer
     createDepthBuffers();
@@ -157,16 +158,16 @@ void Projector::filterPointCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud_in)
 
     for (const auto& pt : cloud_in.points)
     {
-        if (pt.x <= 0.0) continue;
+        //if (pt.x <= 0.0) continue;
 
         const double range = std::sqrt(pt.x*pt.x + pt.y*pt.y + pt.z*pt.z);
-        if (range < minRange_ || range > maxRange_) continue;
+        //if (range < minRange_ || range > maxRange_) continue;
 
         // Keep your original behavior (cone angle, always >= 0)
         const double angle = std::atan2(std::sqrt(pt.y*pt.y + pt.z*pt.z), pt.x);
-        if (angle < minAngRad || angle > maxAngRad) continue;
+        //if (angle < minAngRad || angle > maxAngRad) continue;
 
-        pts3d_.emplace_back(pt.x, pt.y, pt.z);
+        pts3d_.emplace_back(-pt.x, -pt.y, pt.z);
     }
 }
 
