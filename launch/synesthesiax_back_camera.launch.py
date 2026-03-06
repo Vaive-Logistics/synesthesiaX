@@ -27,7 +27,7 @@ def generate_launch_description():
                 {
                     # --- node topics ---
                     'cloud_topic': '/ona2/sensors/pandar_back/cloud',
-                    'labels_img_topic': '/semantic_inference_front/semantic_color/image_raw',
+                    'labels_img_topic': '/semantic_inference_back/semantic_color/image_raw',
                     'raw_img_topic': '/ona2/sensors/flir_camera_back/image_raw',   
 
                     # --- projector params ---
