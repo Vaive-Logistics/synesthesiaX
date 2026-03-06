@@ -18,7 +18,7 @@ class SynesthesiaxNode : public rclcpp::Node
 {
 public:
     SynesthesiaxNode()
-    : Node("synesthesiax")
+    : Node("synesthesiax_front_camera")
     {
         // -------------------------
         // Topics
@@ -88,7 +88,7 @@ public:
         // Publishers
         // -------------------------
         pc_on_img_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
-            "/synesthesiax/backside_cloud_onto_img", 1);
+            "/synesthesiax/frontside_cloud_onto_img", 1);
 
         pc_color_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
             "/synesthesiax/semantic_cloud", 1);

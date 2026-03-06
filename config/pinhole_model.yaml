@@ -1,4 +1,4 @@
-synesthesiax_node:
+synesthesiax_front_camera_node:
   ros__parameters:
     # Intrinsic parameters of the RGB camera (3×3 matrix, row-major)
     camera_matrix: [659.29813, 0.0,        760.64067, 

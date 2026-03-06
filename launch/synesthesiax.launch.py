@@ -19,8 +19,8 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='synesthesiax',
-            executable='synesthesiax_node',
-            name='synesthesiax_node',
+            executable='synesthesiax_front_camera_node',
+            name='synesthesiax_front_camera_node',
             output='screen',
             parameters=[
                 calib_file,

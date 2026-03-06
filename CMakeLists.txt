@@ -32,16 +32,32 @@ find_package(yaml-cpp REQUIRED)
 # -----------------------------
 # Target
 # -----------------------------
+
+# synesthesia_node for back camera
 add_executable(synesthesiax_node
   src/synesthesiax.cpp
   src/Projector.cpp
 )
 
+# synesthesia_node for front camera
+add_executable(synesthesiax_front_camera_node
+  src/synesthesiax_front_camera.cpp
+  src/Projector_front_camera.cpp
+)
+
+# back camera
 target_include_directories(synesthesiax_node PRIVATE
   include
   ${OpenCV_INCLUDE_DIRS}
 )
 
+# front camera
+target_include_directories(synesthesiax_front_camera_node PRIVATE
+  include
+  ${OpenCV_INCLUDE_DIRS}
+)
+
+# back camera
 ament_target_dependencies(synesthesiax_node
   rclcpp
   sensor_msgs
@@ -51,15 +67,39 @@ ament_target_dependencies(synesthesiax_node
   message_filters
 )
 
+
+# front camera
+ament_target_dependencies(synesthesiax_front_camera_node
+  rclcpp
+  sensor_msgs
+  cv_bridge
+  pcl_conversions
+  pcl_ros
+  message_filters
+)
+
+
+# back camera
 target_link_libraries(synesthesiax_node
   ${OpenCV_LIBRARIES}
   yaml-cpp::yaml-cpp
 )
 
+# front camera
+target_link_libraries(synesthesiax_front_camera_node
+  ${OpenCV_LIBRARIES}
+  yaml-cpp::yaml-cpp
+)
+
+
+
 # -----------------------------
 # Install
 # -----------------------------
 install(TARGETS synesthesiax_node
+
+  synesthesiax_front_camera_node
+
   DESTINATION lib/${PROJECT_NAME}
 )
 
