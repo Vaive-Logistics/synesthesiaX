@@ -91,7 +91,7 @@ public:
             "/synesthesiax/backside_cloud_onto_img", 1);
 
         pc_color_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
-            "/synesthesiax/semantic_cloud", 1);
+            "/synesthesiax/backside_semantic_cloud", 1);
 
         // Dynamic publishers per class
         for (const auto& c : classes_)
