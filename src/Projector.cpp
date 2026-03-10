@@ -335,8 +335,8 @@ void Projector::getSemanticClouds(
 
         const auto& p = pts3d_[k];
         pcl::PointXYZRGB pt_rgb;
-        pt_rgb.x = p.x;
-        pt_rgb.y = p.y;
+        pt_rgb.x = - p.x;
+        pt_rgb.y = - p.y;
         pt_rgb.z = p.z;
 
         auto it = bgr_by_id_.find(label_id);
