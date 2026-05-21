@@ -108,15 +108,18 @@ public:
         // -------------------------
         // Subscriptions + sync
         // -------------------------
-        pc_sub_  = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>(this, cloud_topic);
-        lab_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(this, labels_img_topic);
+        const auto sensor_qos = rclcpp::SensorDataQoS().get_rmw_qos_profile();
+        pc_sub_  = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>(
+            this, cloud_topic, sensor_qos);
+        lab_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(
+            this, labels_img_topic, sensor_qos);
 
         sync_ = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(10), *pc_sub_, *lab_sub_);
         sync_->registerCallback(
             std::bind(&SynesthesiaxNode::callback, this, std::placeholders::_1, std::placeholders::_2));
 
         raw_img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            raw_img_topic, 1,
+            raw_img_topic, rclcpp::SensorDataQoS(),
             std::bind(&SynesthesiaxNode::raw_img_callback, this, std::placeholders::_1));
     }
 
