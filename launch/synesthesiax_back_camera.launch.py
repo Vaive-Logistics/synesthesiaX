@@ -3,7 +3,10 @@ ROS2 launch file for synesthesiax
 """
 import os
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from ament_index_python.packages import get_package_share_directory
 
 
@@ -16,7 +19,14 @@ def generate_launch_description():
     # Classes config YAML
     classes_file = os.path.join(pkg_share, 'config', 'classes.yaml')
 
+    debug_mode = LaunchConfiguration('debug_mode')
+
     return LaunchDescription([
+        DeclareLaunchArgument(
+            'debug_mode',
+            default_value='false',
+            description='Enable raw image debug overlay subscription and publisher',
+        ),
         Node(
             package='synesthesiax',
             executable='synesthesiax_node',
@@ -29,6 +39,7 @@ def generate_launch_description():
                     'cloud_topic': '/ona2/sensors/pandar_back/cloud',
                     'labels_img_topic': '/semantic_inference_back/semantic_color/image_raw',
                     'raw_img_topic': '/ona2/sensors/flir_camera_back/image_raw',   
+                    'debug_mode': ParameterValue(debug_mode, value_type=bool),
 
                     # --- projector params ---
                     'max_range': 20.0,

@@ -26,10 +26,12 @@ public:
         this->declare_parameter<std::string>("cloud_topic", "/lidar/points");
         this->declare_parameter<std::string>("labels_img_topic", "/camera/labels");
         this->declare_parameter<std::string>("raw_img_topic", "/camera/raw");
+        this->declare_parameter<bool>("debug_mode", false);
 
         const std::string labels_img_topic = this->get_parameter("labels_img_topic").as_string();
         const std::string cloud_topic      = this->get_parameter("cloud_topic").as_string();
         const std::string raw_img_topic    = this->get_parameter("raw_img_topic").as_string();
+        debug_mode_ = this->get_parameter("debug_mode").as_bool();
 
         // -------------------------
         // Semantic classes config
@@ -91,8 +93,11 @@ public:
         sensor_qos.keep_last(1);
         sensor_qos.best_effort();
 
-        pc_on_img_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
-            "/synesthesiax/backside_cloud_onto_img", sensor_qos);
+        if (debug_mode_)
+        {
+            pc_on_img_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
+                "/synesthesiax/backside_cloud_onto_img", sensor_qos);
+        }
 
         pc_color_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
             "/synesthesiax/backside_semantic_cloud", sensor_qos);
@@ -122,9 +127,12 @@ public:
         sync_->registerCallback(
             std::bind(&SynesthesiaxNode::callback, this, std::placeholders::_1, std::placeholders::_2));
 
-        raw_img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            raw_img_topic, sensor_qos,
-            std::bind(&SynesthesiaxNode::raw_img_callback, this, std::placeholders::_1));
+        if (debug_mode_)
+        {
+            raw_img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
+                raw_img_topic, sensor_qos,
+                std::bind(&SynesthesiaxNode::raw_img_callback, this, std::placeholders::_1));
+        }
     }
 
 private:
@@ -140,17 +148,20 @@ private:
             return;
         }
 
-        const rclcpp::Time t_lab(labels_msg->header.stamp);
-        auto raw_opt = synesthesiax::getNearestRawImg(raw_img_buffer_, raw_mtx_, t_lab);
-        if (raw_opt.has_value()) {
+        if (debug_mode_)
+        {
+            const rclcpp::Time t_lab(labels_msg->header.stamp);
+            auto raw_opt = synesthesiax::getNearestRawImg(raw_img_buffer_, raw_mtx_, t_lab);
+            if (raw_opt.has_value()) {
 
-            const auto& raw_msg = raw_opt.value();
-            const cv::Mat& overlay = projector_.getOverlay(raw_msg);
-            
-            auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", overlay).toImageMsg();
-            img_msg->header = cloud_msg->header;
-            pc_on_img_pub_->publish(*img_msg);
-            
+                const auto& raw_msg = raw_opt.value();
+                const cv::Mat& overlay = projector_.getOverlay(raw_msg);
+
+                auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", overlay).toImageMsg();
+                img_msg->header = cloud_msg->header;
+                pc_on_img_pub_->publish(*img_msg);
+
+            }
         }
         
         pcl::PointCloud<pcl::PointXYZRGB> semanticCloud;
@@ -211,6 +222,7 @@ private:
     std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> sync_;
 
     // Raw buffer
+    bool debug_mode_ = false;
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr raw_img_sub_;
     std::deque<sensor_msgs::msg::Image::ConstSharedPtr> raw_img_buffer_;
     size_t raw_buffer_size_ = 100;
