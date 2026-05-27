@@ -4,12 +4,14 @@
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/point_cloud2.hpp>
 #include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 
 #include <message_filters/subscriber.h>
 #include <message_filters/sync_policies/approximate_time.h>
 #include <message_filters/synchronizer.h>
 
 #include <cv_bridge/cv_bridge.h>
+#include <opencv2/imgcodecs.hpp>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
@@ -120,7 +122,7 @@ public:
         const auto sensor_qos_profile = sensor_qos.get_rmw_qos_profile();
         pc_sub_  = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>(
             this, cloud_topic, sensor_qos_profile);
-        lab_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(
+        lab_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::CompressedImage>>(
             this, labels_img_topic, sensor_qos_profile);
 
         sync_ = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(2), *pc_sub_, *lab_sub_);
@@ -137,11 +139,14 @@ public:
 
 private:
     void callback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg,
-                  const sensor_msgs::msg::Image::ConstSharedPtr labels_msg)
+                  const sensor_msgs::msg::CompressedImage::ConstSharedPtr labels_msg)
     {
         auto start = std::chrono::high_resolution_clock::now();
 
-        if (!projector_.project_cloud_onto_image(cloud_msg, labels_msg))
+        const cv::Mat labels_mat = cv::imdecode(labels_msg->data, cv::IMREAD_UNCHANGED);
+        auto labels_img_msg = cv_bridge::CvImage(labels_msg->header, "mono8", labels_mat).toImageMsg();
+
+        if (!projector_.project_cloud_onto_image(cloud_msg, labels_img_msg))
         {
             RCLCPP_WARN(this->get_logger(),
                         "Projector called without image or cloud (or conversion failed).");
@@ -216,9 +221,9 @@ private:
 
     // Sync
     using SyncPolicy = message_filters::sync_policies::ApproximateTime<
-        sensor_msgs::msg::PointCloud2, sensor_msgs::msg::Image>;
+        sensor_msgs::msg::PointCloud2, sensor_msgs::msg::CompressedImage>;
     std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>> pc_sub_;
-    std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image>> lab_sub_;
+    std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::CompressedImage>> lab_sub_;
     std::shared_ptr<message_filters::Synchronizer<SyncPolicy>> sync_;
 
     // Raw buffer

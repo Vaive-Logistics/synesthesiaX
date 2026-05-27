@@ -37,7 +37,7 @@ def generate_launch_description():
                 {
                     # --- node topics ---
                     'cloud_topic': '/ona2/sensors/pandar_front/cloud',
-                    'labels_img_topic': '/semantic_inference_front/semantic/image_raw',
+                    'labels_img_topic': '/semantic_inference_front/semantic/image_raw/compressed',
                     'raw_img_topic': '/ona2/sensors/flir_camera_front/image_raw/test',   
                     'debug_mode': ParameterValue(debug_mode, value_type=bool),
 
