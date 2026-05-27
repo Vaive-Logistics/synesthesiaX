@@ -11,6 +11,6 @@ classes:
     name: traversable
     color_rgb: [0, 0, 255]    
 
-  - id: 3
-    name: people
-    color_rgb: [255, 238, 17]   
+#  - id: 3
+#    name: people
+#    color_rgb: [255, 238, 17]   

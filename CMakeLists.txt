@@ -79,18 +79,15 @@ ament_target_dependencies(synesthesiax_front_camera_node
 )
 
 
-# back camera
 target_link_libraries(synesthesiax_node
   ${OpenCV_LIBRARIES}
-  yaml-cpp::yaml-cpp
+  yaml-cpp
 )
 
-# front camera
 target_link_libraries(synesthesiax_front_camera_node
   ${OpenCV_LIBRARIES}
-  yaml-cpp::yaml-cpp
+  yaml-cpp
 )
-
 
 
 # -----------------------------

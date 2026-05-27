@@ -61,18 +61,16 @@ bool Projector::init(
     tvec_ = cv::Mat(3, 1, CV_64F, const_cast<double*>(tlc.data())).clone();
     R_inv_ = R_.t();
 
-    // Scale camera matrix to label image size
+    // K_ is updated per frame in project_cloud_onto_image(), because the
+    // semantic image size may differ from the calibration size.
     K_ = cameraMatrix_.clone();
-    const double sx = static_cast<double>(LABEL_W) / CALIB_W;
-    const double sy = static_cast<double>(LABEL_H) / CALIB_H;
-    K_.at<double>(0, 0) *= sx; K_.at<double>(0, 2) *= sx;
-    K_.at<double>(1, 1) *= sy; K_.at<double>(1, 2) *= sy;
 
     return true;
 }
 
-bool Projector::project_cloud_onto_image(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg,
-                                         const sensor_msgs::msg::Image::ConstSharedPtr& image_msg)
+bool Projector::project_cloud_onto_image(
+    const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg,
+    const sensor_msgs::msg::Image::ConstSharedPtr& image_msg)
 {
     if (!cloud_msg || !image_msg)
     {
@@ -80,11 +78,14 @@ bool Projector::project_cloud_onto_image(const sensor_msgs::msg::PointCloud2::Co
         return false;
     }
 
-    // 1) Read semantic image WITHOUT converting whole frame to IDs (Optimization #2)
+    // 1) Read semantic image.
     cv_bridge::CvImageConstPtr cv_ptr;
-    try {
+    try
+    {
         cv_ptr = cv_bridge::toCvShare(image_msg);
-    } catch (const cv_bridge::Exception& e) {
+    }
+    catch (const cv_bridge::Exception& e)
+    {
         std::cout << "[Projector::project_cloud_onto_image] cv_bridge error: " << e.what() << std::endl;
         return false;
     }
@@ -95,42 +96,87 @@ bool Projector::project_cloud_onto_image(const sensor_msgs::msg::PointCloud2::Co
     semantic_rgb_.release();
     labels_.release();
 
-    if (enc == "mono8" || cv_ptr->image.type() == CV_8UC1)
+    const cv::Mat& semantic_img = cv_ptr->image;
+    const int channels = semantic_img.channels();
+    const int depth = semantic_img.depth();
+
+    if (channels == 1)
     {
-        // IDs directos (CV_8UC1)
-        labels_ = cv_ptr->image;
-        semantic_is_color_ = false;
+        // Single-channel semantic masks contain class IDs, not colors.
+        // Normalize every supported integer/float depth to CV_32SC1.
+        // This fixes masks published as 16SC1, which are common for label images.
+        if (depth == CV_8U || depth == CV_8S || depth == CV_16U ||
+            depth == CV_16S || depth == CV_32S || depth == CV_32F)
+        {
+            semantic_img.convertTo(labels_, CV_32SC1);
+            semantic_is_color_ = false;
+            label_width_ = labels_.cols;
+            label_height_ = labels_.rows;
+        }
+        else
+        {
+            std::cout << "[Projector] Unsupported single-channel semantic image encoding: " << enc
+                      << " type=" << semantic_img.type()
+                      << " (expected mono8/8UC1/16UC1/16SC1/32SC1/32FC1)" << std::endl;
+            return false;
+        }
     }
     else if (enc == "rgb8" || enc == "bgr8" || enc == "rgba8" || enc == "bgra8")
     {
-        // Guardar como RGB CV_8UC3 y decodificar label_id SOLO cuando haga falta
+        // Store as RGB CV_8UC3 and decode label_id only when needed.
         semantic_is_color_ = true;
 
-        cv::Mat img = cv_ptr->image;
+        cv::Mat img = semantic_img;
         const bool has_alpha = (enc == "rgba8" || enc == "bgra8");
-        const bool is_bgr    = (enc == "bgr8"  || enc == "bgra8");
+        const bool is_bgr = (enc == "bgr8" || enc == "bgra8");
 
         if (has_alpha)
         {
-            if (img.type() != CV_8UC4) img.convertTo(img, CV_8UC4);
+            if (img.type() != CV_8UC4)
+            {
+                std::cout << "[Projector] Semantic image encoding " << enc
+                          << " does not match a CV_8UC4 image" << std::endl;
+                return false;
+            }
+
             cv::cvtColor(img, semantic_rgb_, is_bgr ? cv::COLOR_BGRA2RGB : cv::COLOR_RGBA2RGB);
         }
         else
         {
-            if (img.type() != CV_8UC3) img.convertTo(img, CV_8UC3);
+            if (img.type() != CV_8UC3)
+            {
+                std::cout << "[Projector] Semantic image encoding " << enc
+                          << " does not match a CV_8UC3 image" << std::endl;
+                return false;
+            }
 
             if (is_bgr)
                 cv::cvtColor(img, semantic_rgb_, cv::COLOR_BGR2RGB);
             else
                 semantic_rgb_ = img; // already RGB
         }
+
+        label_width_ = semantic_rgb_.cols;
+        label_height_ = semantic_rgb_.rows;
     }
     else
     {
         std::cout << "[Projector] Unsupported semantic image encoding: " << enc
-                  << " (expected mono8/rgb8/bgr8/rgba8/bgra8)" << std::endl;
+                  << " channels=" << channels
+                  << " type=" << semantic_img.type()
+                  << " (expected single-channel label IDs or rgb8/bgr8/rgba8/bgra8)" << std::endl;
         return false;
     }
+
+    // Scale camera matrix to the actual semantic image size.
+    K_ = cameraMatrix_.clone();
+    const double sx = static_cast<double>(label_width_) / CALIB_W;
+    const double sy = static_cast<double>(label_height_) / CALIB_H;
+
+    K_.at<double>(0, 0) *= sx;
+    K_.at<double>(0, 2) *= sx;
+    K_.at<double>(1, 1) *= sy;
+    K_.at<double>(1, 2) *= sy;
 
     // 2) Convert cloud and filter
     pcl::PointCloud<pcl::PointXYZ> cloud_in;
@@ -157,14 +203,16 @@ void Projector::filterPointCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud_in)
 
     for (const auto& pt : cloud_in.points)
     {
-        if (pt.x <= 0.0) continue;
+        if (pt.x <= 0.0)
+            continue;
 
-        const double range = std::sqrt(pt.x*pt.x + pt.y*pt.y + pt.z*pt.z);
-        if (range < minRange_ || range > maxRange_) continue;
+        const double range = std::sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z);
+        if (range < minRange_ || range > maxRange_)
+            continue;
 
-        // Keep your original behavior (cone angle, always >= 0)
-        const double angle = std::atan2(std::sqrt(pt.y*pt.y + pt.z*pt.z), pt.x);
-        if (angle < minAngRad || angle > maxAngRad) continue;
+        const double angle = std::atan2(std::sqrt(pt.y * pt.y + pt.z * pt.z), pt.x);
+        if (angle < minAngRad || angle > maxAngRad)
+            continue;
 
         pts3d_.emplace_back(pt.x, pt.y, pt.z);
     }
@@ -172,8 +220,9 @@ void Projector::filterPointCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud_in)
 
 void Projector::createDepthBuffers()
 {
-    depth_buf_.create(cv::Size(LABEL_W, LABEL_H), CV_32F);
-    idx_buf_.create(cv::Size(LABEL_W, LABEL_H), CV_32S);
+    depth_buf_.create(cv::Size(label_width_, label_height_), CV_32F);
+    idx_buf_.create(cv::Size(label_width_, label_height_), CV_32S);
+
     depth_buf_.setTo(std::numeric_limits<float>::infinity());
     idx_buf_.setTo(-1);
 
@@ -191,12 +240,13 @@ void Projector::createDepthBuffers()
         const auto& p = pts3d_[k];
 
         const double Zc =
-            R_.at<double>(2,0)*p.x +
-            R_.at<double>(2,1)*p.y +
-            R_.at<double>(2,2)*p.z +
+            R_.at<double>(2, 0) * p.x +
+            R_.at<double>(2, 1) * p.y +
+            R_.at<double>(2, 2) * p.z +
             tvec_.at<double>(2);
 
-        if (Zc <= 0) continue;
+        if (Zc <= 0)
+            continue;
 
         float& depthValue = depth_buf_.at<float>(v, u);
         if (Zc < depthValue)
@@ -213,17 +263,20 @@ const cv::Mat& Projector::getOverlay(const sensor_msgs::msg::Image::ConstSharedP
         return overlay_cache_;
 
     const int DS = 4;
-    const int outW = std::max(1, LABEL_W / DS);
-    const int outH = std::max(1, LABEL_H / DS);
+    const int outW = std::max(1, label_width_ / DS);
+    const int outH = std::max(1, label_height_ / DS);
 
     cv::Mat base_small(outH, outW, CV_8UC3, cv::Scalar(0, 0, 0));
 
     if (raw_img_msg)
     {
         cv_bridge::CvImageConstPtr raw_ptr;
-        try {
+        try
+        {
             raw_ptr = cv_bridge::toCvShare(raw_img_msg);
-        } catch (const cv_bridge::Exception& e) {
+        }
+        catch (const cv_bridge::Exception& e)
+        {
             std::cout << "[Projector::getOverlay] cv_bridge error (raw): " << e.what() << std::endl;
             raw_ptr.reset();
         }
@@ -232,18 +285,26 @@ const cv::Mat& Projector::getOverlay(const sensor_msgs::msg::Image::ConstSharedP
         {
             cv::Mat raw_bgr;
 
-            if (raw_ptr->image.type() == CV_8UC3) {
+            if (raw_ptr->image.type() == CV_8UC3)
+            {
                 raw_bgr = raw_ptr->image;
-            } else if (raw_ptr->image.type() == CV_8UC1) {
+            }
+            else if (raw_ptr->image.type() == CV_8UC1)
+            {
                 cv::cvtColor(raw_ptr->image, raw_bgr, cv::COLOR_GRAY2BGR);
-            } else {
+            }
+            else
+            {
                 raw_ptr->image.convertTo(raw_bgr, CV_8UC3);
             }
 
             cv::Mat raw_label;
-            if (raw_bgr.cols != LABEL_W || raw_bgr.rows != LABEL_H) {
-                cv::resize(raw_bgr, raw_label, cv::Size(LABEL_W, LABEL_H), 0, 0, cv::INTER_NEAREST);
-            } else {
+            if (raw_bgr.cols != label_width_ || raw_bgr.rows != label_height_)
+            {
+                cv::resize(raw_bgr, raw_label, cv::Size(label_width_, label_height_), 0, 0, cv::INTER_NEAREST);
+            }
+            else
+            {
                 raw_label = raw_bgr;
             }
 
@@ -278,17 +339,20 @@ const cv::Mat& Projector::getOverlay(const sensor_msgs::msg::Image::ConstSharedP
 
         const int us = u / DS;
         const int vs = v / DS;
+
         if (us < 0 || us >= outW || vs < 0 || vs >= outH)
             continue;
 
         const int label_id = labelIdAt(v, u);
 
         auto it = bgr_by_id_.find(label_id);
-        const cv::Vec3b bgr = (it != bgr_by_id_.end()) ? it->second : cv::Vec3b(0,0,255);
+        const cv::Vec3b bgr = (it != bgr_by_id_.end()) ? it->second : cv::Vec3b(0, 0, 255);
 
         float r = k_rad / z;
-        if (r < r_min) r = r_min;
-        if (r > r_max) r = r_max;
+        if (r < r_min)
+            r = r_min;
+        if (r > r_max)
+            r = r_max;
 
         cv::circle(
             overlay_cache_,
@@ -308,7 +372,6 @@ void Projector::getSemanticClouds(
     pcl::PointCloud<pcl::PointXYZRGB>& semanticCloud,
     std::unordered_map<int, pcl::PointCloud<pcl::PointXYZRGB>>& cloudsByClass) const
 {
-    // Optimization #1: O(Npoints), no full image scan
     semanticCloud.clear();
     cloudsByClass.clear();
 
@@ -318,7 +381,7 @@ void Projector::getSemanticClouds(
     const int H = idx_buf_.rows;
     const int W = idx_buf_.cols;
 
-    // Iterate only projected points and keep z-buffer winners
+    // Iterate only projected points and keep z-buffer winners.
     for (size_t k = 0; k < proj2d_.size(); ++k)
     {
         const int u = cvRound(proj2d_[k].x);
@@ -333,13 +396,14 @@ void Projector::getSemanticClouds(
         const int label_id = labelIdAt(v, u);
 
         const auto& p = pts3d_[k];
+
         pcl::PointXYZRGB pt_rgb;
         pt_rgb.x = p.x;
         pt_rgb.y = p.y;
         pt_rgb.z = p.z;
 
         auto it = bgr_by_id_.find(label_id);
-        const cv::Vec3b bgr = (it != bgr_by_id_.end()) ? it->second : cv::Vec3b(0,0,255);
+        const cv::Vec3b bgr = (it != bgr_by_id_.end()) ? it->second : cv::Vec3b(0, 0, 255);
 
         pt_rgb.r = bgr[2];
         pt_rgb.g = bgr[1];
@@ -360,7 +424,8 @@ const cv::Mat& Projector::getDepthMap()
     if (depth_buf_.empty())
         return depth_color;
 
-    cv::Mat depth_norm, depth_u8;
+    cv::Mat depth_norm;
+    cv::Mat depth_u8;
     cv::Mat validMask = depth_buf_ < std::numeric_limits<float>::infinity();
 
     cv::Mat depth_clipped;
@@ -368,8 +433,15 @@ const cv::Mat& Projector::getDepthMap()
     depth_clipped.setTo(maxRange_, depth_clipped > maxRange_);
     depth_clipped.setTo(minRange_, depth_clipped < minRange_);
 
-    cv::normalize(depth_clipped, depth_norm, 255, 0,
-                  cv::NORM_MINMAX, CV_32F, validMask);
+    cv::normalize(
+        depth_clipped,
+        depth_norm,
+        255,
+        0,
+        cv::NORM_MINMAX,
+        CV_32F,
+        validMask
+    );
 
     depth_norm.convertTo(depth_u8, CV_8U);
     cv::applyColorMap(depth_u8, depth_color, cv::COLORMAP_TURBO);

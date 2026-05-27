@@ -75,7 +75,11 @@ private:
   inline int labelIdAt(int v, int u) const
   {
     if (!semantic_is_color_)
-      return static_cast<int>(labels_.at<uint8_t>(v, u));
+    {
+      // labels_ is normalized to CV_32SC1, so semantic masks such as
+      // mono8, 16UC1, 16SC1, 32SC1, etc. are read correctly.
+      return labels_.at<int32_t>(v, u);
+    }
 
     const cv::Vec3b rgb = semantic_rgb_.at<cv::Vec3b>(v, u); // RGB
     const uint32_t key = packRGB(rgb[0], rgb[1], rgb[2]);
@@ -91,12 +95,18 @@ private:
   std::unordered_map<int, cv::Vec3b> bgr_by_id_;      // id -> BGR (OpenCV)
   std::unordered_map<uint32_t, int> id_by_rgb_;       // packed RGB -> id
 
-  // Semantic image storage:
-  // - If mono8: labels_ is CV_8UC1 with class IDs
-  // - If rgb/bgr: semantic_rgb_ is CV_8UC3 in RGB, labels_ may be empty
-  cv::Mat labels_;        // CV_8UC1 (only used when mono8)
-  cv::Mat semantic_rgb_;  // CV_8UC3 RGB (only used when color semantic)
-  bool semantic_is_color_ = false;
+	// Semantic image storage:
+	// - If single-channel mask: labels_ is normalized to CV_32SC1 with class IDs
+	//   Supports encodings such as mono8, 8UC1, 16UC1, 16SC1, 32SC1 and 32FC1.
+	// - If rgb/bgr: semantic_rgb_ is CV_8UC3 in RGB, labels_ may be empty.
+	cv::Mat labels_;        // CV_32SC1 (single-channel semantic ID mask)
+	cv::Mat semantic_rgb_;  // CV_8UC3 RGB (only used when color semantic)
+	bool semantic_is_color_ = false;
+
+	// Actual semantic image size for the current frame.
+	// The projection matrix and depth buffers are updated per frame using this size.
+	int label_width_ = LABEL_W;
+	int label_height_ = LABEL_H;
 
   // Filtering params
   double minRange_ = 0.5, maxRange_ = 30.0;

@@ -114,7 +114,7 @@ public:
         lab_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(
             this, labels_img_topic, sensor_qos);
 
-        sync_ = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(10), *pc_sub_, *lab_sub_);
+        sync_ = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(100), *pc_sub_, *lab_sub_);
         sync_->registerCallback(
             std::bind(&SynesthesiaxNode::callback, this, std::placeholders::_1, std::placeholders::_2));
 
