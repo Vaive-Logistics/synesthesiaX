@@ -87,18 +87,22 @@ public:
         // -------------------------
         // Publishers
         // -------------------------
+        auto sensor_qos = rclcpp::SensorDataQoS();
+        sensor_qos.keep_last(1);
+        sensor_qos.best_effort();
+
         pc_on_img_pub_ = this->create_publisher<sensor_msgs::msg::Image>(
-            "/synesthesiax/frontside_cloud_onto_img", 1);
+            "/synesthesiax/frontside_cloud_onto_img", sensor_qos);
 
         pc_color_pub_ = this->create_publisher<sensor_msgs::msg::PointCloud2>(
-            "/synesthesiax/frontside_semantic_cloud", 1);
+            "/synesthesiax/frontside_semantic_cloud", sensor_qos);
 
         // Dynamic publishers per class
         for (const auto& c : classes_)
         {
             const std::string topic = class_topic_prefix + "/" + c.name;
             class_cloud_pubs_[c.id] =
-                this->create_publisher<sensor_msgs::msg::PointCloud2>(topic, 1);
+                this->create_publisher<sensor_msgs::msg::PointCloud2>(topic, sensor_qos);
 
             RCLCPP_INFO(this->get_logger(),
                         "Class publisher: id=%d name=%s topic=%s color_rgb=[%d,%d,%d]",
@@ -108,18 +112,18 @@ public:
         // -------------------------
         // Subscriptions + sync
         // -------------------------
-        const auto sensor_qos = rclcpp::SensorDataQoS().get_rmw_qos_profile();
+        const auto sensor_qos_profile = sensor_qos.get_rmw_qos_profile();
         pc_sub_  = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>>(
-            this, cloud_topic, sensor_qos);
+            this, cloud_topic, sensor_qos_profile);
         lab_sub_ = std::make_shared<message_filters::Subscriber<sensor_msgs::msg::Image>>(
-            this, labels_img_topic, sensor_qos);
+            this, labels_img_topic, sensor_qos_profile);
 
-        sync_ = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(100), *pc_sub_, *lab_sub_);
+        sync_ = std::make_shared<message_filters::Synchronizer<SyncPolicy>>(SyncPolicy(2), *pc_sub_, *lab_sub_);
         sync_->registerCallback(
             std::bind(&SynesthesiaxNode::callback, this, std::placeholders::_1, std::placeholders::_2));
 
         raw_img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
-            raw_img_topic, rclcpp::SensorDataQoS(),
+            raw_img_topic, sensor_qos,
             std::bind(&SynesthesiaxNode::raw_img_callback, this, std::placeholders::_1));
     }
 
