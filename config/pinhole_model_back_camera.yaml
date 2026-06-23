@@ -1,20 +1,22 @@
-synesthesiax_node:
+/**:
   ros__parameters:
+    # YAML config file for Ona back camera.
+    # The old back-camera code manually used (-x, -y, z) before projection.
+    # That 180-degree Z rotation is now absorbed here:
+    # R_new = R_old * diag(-1, -1, 1)
 
-    # yaml config file for Ona back camera
-    
-    # Intrinsic parameters of the RGB camera (3×3 matrix, row-major)
-    camera_matrix: [687.70582, 0.0,        757.89175, 
-                0.0,       694.9585,         556.47313, 
-                0.0,       0.0,              1.0]
+    # Intrinsic parameters of the RGB camera: 3x3 matrix, row-major.
+    camera_matrix: [687.70582, 0.0,      757.89175,
+                    0.0,       694.9585, 556.47313,
+                    0.0,       0.0,      1.0]
 
-    # Rotation matrix (3×3) from LiDAR frame to camera frame
-    rlc: [0.0,  -1.0,  0.0,
-          0.0,  0.0, -1.0,
-          1.0, 0.0,  0.0]
+    # Rotation matrix from LiDAR frame to camera frame, with the former sign convention absorbed.
+    rlc: [ 0.0, 1.0,  0.0,
+           0.0, 0.0, -1.0,
+          -1.0, 0.0,  0.0]
 
-    # Translation vector (3×1) from base_footprint frame to flir_camera_back frame (metres)
-    tlc: [-0.10000000,  1.1, -0.84000]
+    # Translation vector from LiDAR frame to camera frame, in metres.
+    tlc: [-0.10000000, 1.1, -0.84000]
 
-    # Distortion coefficients of the camera lens (k1, k2, p1, p2, k3)
+    # Distortion coefficients of the camera lens: k1, k2, p1, p2, k3.
     d: [-0.213964, 0.035798, 0.000632, -0.002842, 0.0]

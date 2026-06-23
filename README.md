@@ -1,46 +1,56 @@
-# SynesthesiaX
+# synesthesiax
 
-C++/OpenCV module for multimodal LiDAR-camera fusion, segmenting point clouds semantically based on camera labels using EfficientViT-SAM.
-`‍Synesthesiax` projects LiDAR point clouds onto semantic camera images and publishes colored clouds + overlays.
+ROS 2 package that projects LiDAR point clouds onto semantic camera images and publishes colored semantic point clouds.
 
+## Refactored node structure
 
-## 📦 Important Dependencies
-
-* ROS 2 Humble (rclcpp, sensor\_msgs, cv\_bridge)
-* PCL (pcl\_ros, pcl\_conversions)
-* OpenCV (>=4.0)
-* message\_filters
-
----
-
-## 🛠️ Installation
+The package now builds a single reusable executable:
 
 ```bash
-# 1. Clone into your ROS 2 workspace
-cd ~/ros2_ws/src
-git clone https://github.com/Vaive-Logistics/synesthesiaX
-
-# 2. Build the package
-cd ~/ros2_ws
-colcon build --packages-select synesthesiax
+synesthesiax_node
 ```
 
----
+The same executable is launched twice with different parameters:
 
-## ▶️ Usage
+- `synesthesiax_front`
+- `synesthesiax_back`
+
+Use:
 
 ```bash
-# Source your workspace
-cd ~/ros2_ws
-source /install/setup.bash
-
-# Launch the node with default parameters
 ros2 launch synesthesiax synesthesiax.launch.py
 ```
 
-📁 Calibration file is loaded from
-`install/share/synesthesiax/config/pinhole_model.yaml`
+Single-side launch files are also available:
 
----
+```bash
+ros2 launch synesthesiax synesthesiax_front_camera.launch.py
+ros2 launch synesthesiax synesthesiax_back_camera.launch.py
+```
 
-👍 Enjoy! If you hit any issues, feel free to open an issue on the repo.
+## Important parameters
+
+- `labels_transport`: `raw` or `compressed`.
+- `semantic_cloud_topic`: output topic for the full semantic cloud.
+- `overlay_topic`: output topic for the projected debug image.
+- `class_cloud_topic_prefix`: prefix for per-class semantic clouds.
+- `enable_range_filter`: enable/disable range filtering.
+- `enable_fov_filter`: enable/disable FOV filtering.
+- `require_positive_x`: discard points with `x <= 0` when enabled.
+- `sync_queue_size`: approximate-time synchronizer queue size.
+
+## Coordinate convention
+
+The old back-camera implementation manually projected points as:
+
+```cpp
+(-x, -y, z)
+```
+
+That convention is now absorbed in `config/pinhole_model_back_camera.yaml`:
+
+```text
+R_new = R_old * diag(-1, -1, 1)
+```
+
+Therefore, the C++ projector is now frame-agnostic and always uses the original cloud coordinates directly.
