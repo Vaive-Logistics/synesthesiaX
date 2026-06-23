@@ -45,6 +45,8 @@ add_executable(synesthesiax_front_camera_node
   src/Projector_front_camera.cpp
 )
 
+target_compile_options(synesthesiax_front_camera_node PRIVATE -O3 -march=native)
+
 # back camera
 target_include_directories(synesthesiax_node PRIVATE
   include
