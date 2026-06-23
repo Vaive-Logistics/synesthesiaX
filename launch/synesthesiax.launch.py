@@ -31,7 +31,7 @@ def generate_launch_description():
         ),
         DeclareLaunchArgument(
             'back_debug_mode',
-            default_value='false',
+            default_value='true',
             description='Enable back raw-image debug overlay subscription and publisher',
         ),
 
@@ -80,11 +80,11 @@ def generate_launch_description():
                 {
                     # --- input topics ---
                     'cloud_topic': '/ona2/sensors/pandar_back/cloud',
-                    'labels_img_topic': '/semantic_inference_back/semantic_color/image_raw',
-                    'labels_transport': 'raw',
+                    'labels_img_topic': '/semantic_inference_back/semantic/image_raw/compressed',
+                    'labels_transport': 'compressed',
                     'raw_img_topic': '/ona2/sensors/flir_camera_back/image_raw',
                     'debug_mode': ParameterValue(back_debug_mode, value_type=bool),
-                    'sync_queue_size': 2,
+                    'sync_queue_size': 10,
 
                     # --- output topics ---
                     'semantic_cloud_topic': '/synesthesiax/backside_semantic_cloud',
@@ -97,9 +97,9 @@ def generate_launch_description():
                     'min_range': 1.0,
                     'max_ang_fov': 180.0,
                     'min_ang_fov': -180.0,
-                    'enable_range_filter': False,
-                    'enable_fov_filter': False,
-                    'require_positive_x': False,
+                    'enable_range_filter': True,
+                    'enable_fov_filter': True,
+                    'require_positive_x': True,
 
                     'classes_config': classes_file,
                 }
