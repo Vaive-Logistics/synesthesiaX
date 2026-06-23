@@ -1,7 +1,7 @@
 #pragma once
 /**
  * @file   Projector.hpp
- * @brief  Projects 3D point cloud onto semantic image; provides semantic colored clouds and overlays.
+ * @brief  Projects a 3D point cloud onto a semantic image and publishes semantic colored clouds/overlays.
  */
 
 #include <sensor_msgs/msg/point_cloud2.hpp>
@@ -34,6 +34,9 @@ public:
   bool init(
       double min_range, double max_range,
       double min_ang_fov, double max_ang_fov,
+      bool enable_range_filter,
+      bool enable_fov_filter,
+      bool require_positive_x,
       const std::vector<double>& camera_matrix,
       const std::vector<double>& dist_coeffs,
       const std::vector<double>& rlc,
@@ -45,7 +48,7 @@ public:
                                 const sensor_msgs::msg::Image::ConstSharedPtr& image_msg);
 
   /**
-   * @brief Full semantic cloud + per-class clouds (by label id).
+   * @brief Full semantic cloud + per-class clouds, indexed by label id.
    *        Optimized: O(Npoints), iterates projected points and keeps z-buffer winners.
    */
   void getSemanticClouds(
@@ -53,7 +56,7 @@ public:
       std::unordered_map<int, pcl::PointCloud<pcl::PointXYZRGB>>& cloudsByClass) const;
 
   /**
-   * @brief Get semantic overlay image (low quality). Uses z-buffer winners.
+   * @brief Get semantic overlay image. Uses z-buffer winners.
    */
   const cv::Mat& getOverlay(const sensor_msgs::msg::Image::ConstSharedPtr& raw_image_msg);
 
@@ -63,7 +66,7 @@ private:
   void filterPointCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud_in);
   void createDepthBuffers();
 
-  // Pack RGB to 24-bit key for fast hash lookup
+  // Pack RGB to 24-bit key for fast hash lookup.
   static inline uint32_t packRGB(uint8_t r, uint8_t g, uint8_t b)
   {
     return (static_cast<uint32_t>(r) << 16) |
@@ -71,13 +74,11 @@ private:
            (static_cast<uint32_t>(b));
   }
 
-  // Decode label id at pixel (v,u) (handles both mono-id and RGB semantic images)
+  // Decode label id at pixel (v,u). Supports both mono-id and RGB semantic images.
   inline int labelIdAt(int v, int u) const
   {
     if (!semantic_is_color_)
     {
-      // labels_ is normalized to CV_32SC1, so semantic masks such as
-      // mono8, 16UC1, 16SC1, 32SC1, etc. are read correctly.
       return labels_.at<int32_t>(v, u);
     }
 
@@ -86,37 +87,40 @@ private:
     auto it = id_by_rgb_.find(key);
     return (it != id_by_rgb_.end()) ? it->second : 255; // 255 => unknown
   }
+
   // Calibration
   cv::Mat cameraMatrix_, distCoeffs_, rvec_, tvec_, R_, R_inv_, K_;
 
   // Classes
   std::vector<SemanticClass> classes_;
-  std::unordered_map<int, cv::Vec3b> bgr_by_id_;      // id -> BGR (OpenCV)
+  std::unordered_map<int, cv::Vec3b> bgr_by_id_;      // id -> BGR, OpenCV convention
   std::unordered_map<uint32_t, int> id_by_rgb_;       // packed RGB -> id
 
-	// Semantic image storage:
-	// - If single-channel mask: labels_ is normalized to CV_32SC1 with class IDs
-	//   Supports encodings such as mono8, 8UC1, 16UC1, 16SC1, 32SC1 and 32FC1.
-	// - If rgb/bgr: semantic_rgb_ is CV_8UC3 in RGB, labels_ may be empty.
-	cv::Mat labels_;        // CV_32SC1 (single-channel semantic ID mask)
-	cv::Mat semantic_rgb_;  // CV_8UC3 RGB (only used when color semantic)
-	bool semantic_is_color_ = false;
+  // Semantic image storage:
+  // - If single-channel mask: labels_ is normalized to CV_32SC1 with class IDs.
+  // - If rgb/bgr: semantic_rgb_ is CV_8UC3 in RGB, labels_ may be empty.
+  cv::Mat labels_;
+  cv::Mat semantic_rgb_;
+  bool semantic_is_color_ = false;
 
-	// Actual semantic image size for the current frame.
-	// The projection matrix and depth buffers are updated per frame using this size.
-	int label_width_ = LABEL_W;
-	int label_height_ = LABEL_H;
+  // Actual semantic image size for the current frame.
+  // The projection matrix and depth buffers are updated per frame using this size.
+  int label_width_ = LABEL_W;
+  int label_height_ = LABEL_H;
 
   // Filtering params
   double minRange_ = 0.5, maxRange_ = 30.0;
   double minAngFOV_ = -45.0, maxAngFOV_ = 45.0;
+  bool enableRangeFilter_ = true;
+  bool enableFovFilter_ = true;
+  bool requirePositiveX_ = true;
 
   static constexpr int CALIB_W = 1440;
   static constexpr int CALIB_H = 1080;
   static constexpr int LABEL_W = 1440;
   static constexpr int LABEL_H = 1080;
 
-  // Projected data
+  // Projected data, expressed in the input cloud frame.
   std::vector<cv::Point3f> pts3d_;
   std::vector<cv::Point2f> proj2d_;
 

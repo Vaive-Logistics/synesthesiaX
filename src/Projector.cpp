@@ -13,6 +13,9 @@ Projector::Projector() : overlay_updated_(false) {}
 bool Projector::init(
     double min_range, double max_range,
     double min_ang_fov, double max_ang_fov,
+    bool enable_range_filter,
+    bool enable_fov_filter,
+    bool require_positive_x,
     const std::vector<double>& cam,
     const std::vector<double>& d,
     const std::vector<double>& rlc,
@@ -23,6 +26,9 @@ bool Projector::init(
     maxRange_ = max_range;
     minAngFOV_ = min_ang_fov;
     maxAngFOV_ = max_ang_fov;
+    enableRangeFilter_ = enable_range_filter;
+    enableFovFilter_ = enable_fov_filter;
+    requirePositiveX_ = require_positive_x;
 
     classes_ = classes;
     bgr_by_id_.clear();
@@ -203,17 +209,26 @@ void Projector::filterPointCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud_in)
 
     for (const auto& pt : cloud_in.points)
     {
-        // Back camera version keeps the original behavior:
-        // range/FOV filters are disabled.
-        const double range = std::sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z);
-        (void)range;
+        if (requirePositiveX_ && pt.x <= 0.0)
+            continue;
 
-        const double angle = std::atan2(std::sqrt(pt.y * pt.y + pt.z * pt.z), pt.x);
-        (void)angle;
-        (void)minAngRad;
-        (void)maxAngRad;
+        if (enableRangeFilter_)
+        {
+            const double range = std::sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z);
+            if (range < minRange_ || range > maxRange_)
+                continue;
+        }
 
-        pts3d_.emplace_back(-pt.x, -pt.y, pt.z);
+        if (enableFovFilter_)
+        {
+            const double angle = std::atan2(std::sqrt(pt.y * pt.y + pt.z * pt.z), pt.x);
+            if (angle < minAngRad || angle > maxAngRad)
+                continue;
+        }
+
+        // Do not hardcode front/back sign conventions here.
+        // Any coordinate convention must be represented in the LiDAR->camera extrinsic RLC/TLC.
+        pts3d_.emplace_back(pt.x, pt.y, pt.z);
     }
 }
 
@@ -397,8 +412,8 @@ void Projector::getSemanticClouds(
         const auto& p = pts3d_[k];
 
         pcl::PointXYZRGB pt_rgb;
-        pt_rgb.x = -p.x;
-        pt_rgb.y = -p.y;
+        pt_rgb.x = p.x;
+        pt_rgb.y = p.y;
         pt_rgb.z = p.z;
 
         auto it = bgr_by_id_.find(label_id);
