@@ -56,6 +56,9 @@ def generate_launch_description():
                     'overlay_topic': '/synesthesiax/frontside_cloud_onto_img',
                     'class_cloud_topic_prefix': '/synesthesiax/front/class',
 
+                    # --- fail-safe cloud (no cameras) ---
+                    'failsafe_cloud_topic': '/ground_segmentation/obstacle_points',
+
                     # --- projector params ---
                     'max_range': 20.0,
                     'min_range': 1.0,
@@ -90,6 +93,9 @@ def generate_launch_description():
                     'semantic_cloud_topic': '/synesthesiax/backside_semantic_cloud',
                     'overlay_topic': '/synesthesiax/backside_cloud_onto_img',
                     'class_cloud_topic_prefix': '/synesthesiax/back/class',
+
+                    # --- fail-safe cloud (no cameras) ---
+                    'failsafe_cloud_topic': '/dummy_not_used',
 
                     # --- projector params ---
                     # Back keeps the original no-filter behavior. Enable these once validated.
