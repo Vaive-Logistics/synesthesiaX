@@ -97,9 +97,9 @@ def generate_launch_description():
                     'min_range': 1.0,
                     'max_ang_fov': 180.0,
                     'min_ang_fov': -180.0,
-                    'enable_range_filter': True,
-                    'enable_fov_filter': True,
-                    'require_positive_x': True,
+                    'enable_range_filter': False,
+                    'enable_fov_filter': False,
+                    'require_positive_x': False,
 
                     'classes_config': classes_file,
                 }
