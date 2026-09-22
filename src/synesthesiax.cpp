@@ -207,6 +207,7 @@ public:
             failsafe_cloud_topic_, sensor_qos,
             std::bind(&SynesthesiaxNode::cacheFailSafeCloud, this, std::placeholders::_1)
         );
+        last_labels_received_time_ = this->now(); // start counting (set reference of rclcpp::Time object)
 
         if (debug_mode_)
         {
