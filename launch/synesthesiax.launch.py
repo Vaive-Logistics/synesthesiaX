@@ -112,6 +112,9 @@ def generate_launch_description():
                     'enable_height_filter': True,
                     'enable_fov_filter': True,
                     'require_positive_x': True,
+                    'enable_range_filter': False,
+                    'enable_fov_filter': False,
+                    'require_positive_x': False,
 
                     'classes_config': classes_file,
                 }

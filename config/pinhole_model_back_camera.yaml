@@ -16,7 +16,7 @@
           -1.0, 0.0,  0.0]
 
     # Translation vector from LiDAR frame to camera frame, in metres.
-    tlc: [-0.10000000, 1.1, -0.84000]
+    tlc: [0.28564802, 1.01355072, -0.9722258]
 
     # Distortion coefficients of the camera lens: k1, k2, p1, p2, k3.
     d: [-0.213964, 0.035798, 0.000632, -0.002842, 0.0]
