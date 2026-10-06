@@ -26,12 +26,12 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'front_debug_mode',
-            default_value='true',
+            default_value='false',
             description='Enable front raw-image debug overlay subscription and publisher',
         ),
         DeclareLaunchArgument(
             'back_debug_mode',
-            default_value='true',
+            default_value='false',
             description='Enable back raw-image debug overlay subscription and publisher',
         ),
 
