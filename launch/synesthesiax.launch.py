@@ -62,9 +62,12 @@ def generate_launch_description():
                     # --- projector params ---
                     'max_range': 20.0,
                     'min_range': 1.0,
+                    'max_height': 1.5,
+                    'min_height': -1.5,
                     'max_ang_fov': 60.0,
                     'min_ang_fov': -60.0,
                     'enable_range_filter': True,
+                    'enable_height_filter': True,
                     'enable_fov_filter': True,
                     'require_positive_x': True,
 
@@ -101,9 +104,12 @@ def generate_launch_description():
                     # Back keeps the original no-filter behavior. Enable these once validated.
                     'max_range': 20.0,
                     'min_range': 1.0,
+                    'max_height': 1.5,
+                    'min_height': -1.5,
                     'max_ang_fov': 180.0,
                     'min_ang_fov': -180.0,
                     'enable_range_filter': True,
+                    'enable_height_filter': True,
                     'enable_fov_filter': True,
                     'require_positive_x': True,
 

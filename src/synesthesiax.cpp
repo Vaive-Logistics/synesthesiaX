@@ -99,9 +99,12 @@ public:
         // -------------------------
         this->declare_parameter("min_range", 0.5);
         this->declare_parameter("max_range", 30.0);
+        this->declare_parameter("min_height", -std::numeric_limits<double>::infinity());
+        this->declare_parameter("max_height", std::numeric_limits<double>::infinity());
         this->declare_parameter("min_ang_fov", -45.0);
         this->declare_parameter("max_ang_fov", 45.0);
         this->declare_parameter("enable_range_filter", true);
+        this->declare_parameter("enable_height_filter", true);
         this->declare_parameter("enable_fov_filter", true);
         this->declare_parameter("require_positive_x", true);
         this->declare_parameter("camera_matrix", std::vector<double>());
@@ -117,9 +120,12 @@ public:
         bool ok = projector_.init(
             this->get_parameter("min_range").as_double(),
             this->get_parameter("max_range").as_double(),
+            this->get_parameter("min_height").as_double(),
+            this->get_parameter("max_height").as_double(),
             this->get_parameter("min_ang_fov").as_double(),
             this->get_parameter("max_ang_fov").as_double(),
             this->get_parameter("enable_range_filter").as_bool(),
+            this->get_parameter("enable_height_filter").as_bool(),
             this->get_parameter("enable_fov_filter").as_bool(),
             this->get_parameter("require_positive_x").as_bool(),
             std::vector<double>(cam.begin(), cam.end()),
@@ -297,8 +303,10 @@ private:
         if (!cloud_msg)
             return;
 
+        auto filtered_cloud = projector_.filterPointCloudByHeight(cloud_msg);
+
         std::lock_guard<std::mutex> lk(watchdog_mtx_);
-        last_failsafe_cloud_msg_ = cloud_msg;
+        last_failsafe_cloud_msg_ = filtered_cloud;
     }
 
     void updateImageWatchdog(const rclcpp::Time& /*image_stamp*/)
