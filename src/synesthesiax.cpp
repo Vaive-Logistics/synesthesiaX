@@ -40,17 +40,27 @@ public:
         this->declare_parameter<std::string>("labels_img_topic", "/camera/labels");
         this->declare_parameter<std::string>("labels_transport", "raw"); // "raw" or "compressed"
         this->declare_parameter<std::string>("raw_img_topic", "/camera/raw");
+        this->declare_parameter<std::string>("failsafe_cloud_topic", "/ground_segmentation_obstacles");
         this->declare_parameter<bool>("debug_mode", false);
         this->declare_parameter<int>("sync_queue_size", 10);
         this->declare_parameter<int>("raw_buffer_size", 100);
+        this->declare_parameter<double>("image_watchdog_timeout", 2.0);
 
         cloud_topic_ = this->get_parameter("cloud_topic").as_string();
         labels_img_topic_ = this->get_parameter("labels_img_topic").as_string();
         labels_transport_ = this->get_parameter("labels_transport").as_string();
         raw_img_topic_ = this->get_parameter("raw_img_topic").as_string();
+        failsafe_cloud_topic_ = this->get_parameter("failsafe_cloud_topic").as_string();
         debug_mode_ = this->get_parameter("debug_mode").as_bool();
         sync_queue_size_ = this->get_parameter("sync_queue_size").as_int();
         raw_buffer_size_ = static_cast<size_t>(this->get_parameter("raw_buffer_size").as_int());
+        image_watchdog_timeout_ = this->get_parameter("image_watchdog_timeout").as_double();
+
+        if (image_watchdog_timeout_ <= 0.0)
+        {
+            RCLCPP_WARN(this->get_logger(), "image_watchdog_timeout <= 0. Forcing image_watchdog_timeout=2.0.");
+            image_watchdog_timeout_ = 2.0;
+        }
 
         if (sync_queue_size_ <= 0)
         {
@@ -89,9 +99,12 @@ public:
         // -------------------------
         this->declare_parameter("min_range", 0.5);
         this->declare_parameter("max_range", 30.0);
+        this->declare_parameter("min_height", -std::numeric_limits<double>::infinity());
+        this->declare_parameter("max_height", std::numeric_limits<double>::infinity());
         this->declare_parameter("min_ang_fov", -45.0);
         this->declare_parameter("max_ang_fov", 45.0);
         this->declare_parameter("enable_range_filter", true);
+        this->declare_parameter("enable_height_filter", true);
         this->declare_parameter("enable_fov_filter", true);
         this->declare_parameter("require_positive_x", true);
         this->declare_parameter("camera_matrix", std::vector<double>());
@@ -107,9 +120,12 @@ public:
         bool ok = projector_.init(
             this->get_parameter("min_range").as_double(),
             this->get_parameter("max_range").as_double(),
+            this->get_parameter("min_height").as_double(),
+            this->get_parameter("max_height").as_double(),
             this->get_parameter("min_ang_fov").as_double(),
             this->get_parameter("max_ang_fov").as_double(),
             this->get_parameter("enable_range_filter").as_bool(),
+            this->get_parameter("enable_height_filter").as_bool(),
             this->get_parameter("enable_fov_filter").as_bool(),
             this->get_parameter("require_positive_x").as_bool(),
             std::vector<double>(cam.begin(), cam.end()),
@@ -193,6 +209,12 @@ public:
                           this, std::placeholders::_1, std::placeholders::_2));
         }
 
+        failsafe_cloud_sub_ = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+            failsafe_cloud_topic_, sensor_qos,
+            std::bind(&SynesthesiaxNode::cacheFailSafeCloud, this, std::placeholders::_1)
+        );
+        last_labels_received_time_ = this->now(); // start counting (set reference of rclcpp::Time object)
+
         if (debug_mode_)
         {
             raw_img_sub_ = this->create_subscription<sensor_msgs::msg::Image>(
@@ -200,9 +222,15 @@ public:
                 std::bind(&SynesthesiaxNode::rawImgCallback, this, std::placeholders::_1));
         }
 
+        image_watchdog_timer_ = this->create_wall_timer(
+            std::chrono::milliseconds(100),
+            std::bind(&SynesthesiaxNode::watchdogTimerCallback, this));
+
         RCLCPP_INFO(this->get_logger(),
-                    "Synesthesiax node started. cloud='%s', labels='%s', labels_transport='%s'",
-                    cloud_topic_.c_str(), labels_img_topic_.c_str(), labels_transport_.c_str());
+                    "Synesthesiax node started. cloud='%s', labels='%s', labels_transport='%s', image_watchdog_timeout=%.2f s"
+                    " failsafe cloud='%s'",
+                    cloud_topic_.c_str(), labels_img_topic_.c_str(), labels_transport_.c_str(), image_watchdog_timeout_,
+                    failsafe_cloud_topic_.c_str());
     }
 
 private:
@@ -259,13 +287,93 @@ private:
         if (!labels_img_msg)
             return;
 
+        updateImageWatchdog(labels_img_msg->header.stamp);
         processFrame(cloud_msg, labels_img_msg);
     }
 
     void rawCallback(const sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg,
                      const sensor_msgs::msg::Image::ConstSharedPtr labels_msg)
     {
+        updateImageWatchdog(labels_msg->header.stamp);
         processFrame(cloud_msg, labels_msg);
+    }
+
+    void cacheFailSafeCloud(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg)
+    {
+        if (!cloud_msg)
+            return;
+
+        auto filtered_cloud = projector_.filterPointCloudByHeight(cloud_msg);
+
+        std::lock_guard<std::mutex> lk(watchdog_mtx_);
+        last_failsafe_cloud_msg_ = filtered_cloud;
+    }
+
+    void updateImageWatchdog(const rclcpp::Time& /*image_stamp*/)
+    {
+        std::lock_guard<std::mutex> lk(watchdog_mtx_);
+        // last_labels_received_time_ = image_stamp;
+        last_labels_received_time_ = this->now(); // do not care about camera latency
+        watchdog_triggered_ = false;
+    }
+
+    void publishRawCloud(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg) const
+    {
+        if (!cloud_msg)
+            return;
+
+        sensor_msgs::msg::PointCloud2 raw_cloud = *cloud_msg;
+        pc_color_pub_->publish(raw_cloud);
+    }
+
+    void watchdogTimerCallback()
+    {
+        sensor_msgs::msg::PointCloud2::ConstSharedPtr cloud_msg;
+        rclcpp::Time last_labels_stamp;
+        bool watchdog_triggered = false;
+
+        {
+            std::lock_guard<std::mutex> lk(watchdog_mtx_);
+            cloud_msg = last_failsafe_cloud_msg_;
+            last_labels_stamp = last_labels_received_time_;
+            watchdog_triggered = watchdog_triggered_;
+        }
+
+        if (!cloud_msg || last_labels_stamp.nanoseconds() == 0ULL)
+            return;
+
+        const auto now = this->now();
+        const double age_s = (now - last_labels_stamp).seconds();
+
+        if (age_s > image_watchdog_timeout_)
+        {
+            RCLCPP_WARN_THROTTLE(this->get_logger(), *get_clock(), 1000,
+                        "Semantic image watchdog triggered after %.2f s without labels. Publishing failsafe point cloud.",
+                        age_s);
+
+            {
+                std::lock_guard<std::mutex> lk(watchdog_mtx_);
+                watchdog_triggered_ = true;
+            }
+
+            // Publish failsafe cloud 
+            static const int class_id = 1; // hardcoded 'obstacle' label idx
+            auto it_pub = class_cloud_pubs_.find(class_id);
+            if (it_pub == class_cloud_pubs_.end())
+                return;
+
+            sensor_msgs::msg::PointCloud2 msg = *cloud_msg;
+            it_pub->second->publish(msg);
+
+            return;
+        }
+
+        if (watchdog_triggered)
+        {
+            std::lock_guard<std::mutex> lk(watchdog_mtx_);
+            watchdog_triggered_ = false;
+            RCLCPP_INFO(this->get_logger(), "Semantic image watchdog cleared; fusion restored.");
+        }
     }
 
     void processFrame(const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg,
@@ -340,6 +448,7 @@ private:
     std::string labels_img_topic_;
     std::string labels_transport_;
     std::string raw_img_topic_;
+    std::string failsafe_cloud_topic_;
     bool debug_mode_ = false;
     int sync_queue_size_ = 10;
 
@@ -357,10 +466,20 @@ private:
     std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::Image>> lab_sub_raw_;
     std::shared_ptr<message_filters::Synchronizer<RawSyncPolicy>> sync_raw_;
 
+    // Watchdog / fallback state
+    rclcpp::TimerBase::SharedPtr image_watchdog_timer_;
+    rclcpp::Time last_labels_received_time_{0, 0};
+    sensor_msgs::msg::PointCloud2::ConstSharedPtr last_failsafe_cloud_msg_;
+    std::mutex watchdog_mtx_;
+    bool watchdog_triggered_ = false;
+    double image_watchdog_timeout_ = 2.0;
+
     // Compressed semantic image sync
     std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::PointCloud2>> pc_sub_compressed_;
     std::shared_ptr<message_filters::Subscriber<sensor_msgs::msg::CompressedImage>> lab_sub_compressed_;
     std::shared_ptr<message_filters::Synchronizer<CompressedSyncPolicy>> sync_compressed_;
+
+    rclcpp::Subscription<sensor_msgs::msg::PointCloud2>::SharedPtr failsafe_cloud_sub_;
 
     // Raw image buffer, only used for debug overlay
     rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr raw_img_sub_;

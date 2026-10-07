@@ -12,8 +12,10 @@ Projector::Projector() : overlay_updated_(false) {}
 
 bool Projector::init(
     double min_range, double max_range,
+    double min_height, double max_height,
     double min_ang_fov, double max_ang_fov,
     bool enable_range_filter,
+    bool enable_height_filter,
     bool enable_fov_filter,
     bool require_positive_x,
     const std::vector<double>& cam,
@@ -24,9 +26,12 @@ bool Projector::init(
 {
     minRange_ = min_range;
     maxRange_ = max_range;
+    minHeight_ = min_height;
+    maxHeight_ = max_height;
     minAngFOV_ = min_ang_fov;
     maxAngFOV_ = max_ang_fov;
     enableRangeFilter_ = enable_range_filter;
+    enableHeightFilter_ = enable_height_filter;
     enableFovFilter_ = enable_fov_filter;
     requirePositiveX_ = require_positive_x;
 
@@ -216,6 +221,12 @@ void Projector::filterPointCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud_in)
         {
             const double range = std::sqrt(pt.x * pt.x + pt.y * pt.y + pt.z * pt.z);
             if (range < minRange_ || range > maxRange_)
+                continue;
+        }
+
+        if (enableHeightFilter_) // filter by z-coordinate (height) at sensor frame, not camera frame
+        {
+            if ( (pt.z < minHeight_) || (pt.z > maxHeight_) )
                 continue;
         }
 
@@ -462,4 +473,45 @@ const cv::Mat& Projector::getDepthMap()
     depth_color.setTo(cv::Scalar::all(0), ~validMask);
 
     return depth_color;
+}
+
+sensor_msgs::msg::PointCloud2::ConstSharedPtr Projector::filterPointCloudByHeight(
+      const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg)
+{
+    if(!enableHeightFilter_)
+        return cloud_msg;
+
+    pcl::PCLPointCloud2 pcl_cloud_in;
+    pcl_conversions::toPCL(*cloud_msg, pcl_cloud_in);
+
+    pcl::PCLPointCloud2 pcl_cloud_out;
+
+    pcl::CropBox<pcl::PCLPointCloud2> crop_box;
+    crop_box.setInputCloud(
+        std::make_shared<pcl::PCLPointCloud2>(pcl_cloud_in));
+
+    // Keep points between minHeight_ and maxHeight_ in the input cloud frame.
+    crop_box.setMin(Eigen::Vector4f(
+        -std::numeric_limits<float>::max(),
+        -std::numeric_limits<float>::max(),
+        minHeight_,
+        1.0f));
+
+    crop_box.setMax(Eigen::Vector4f(
+        std::numeric_limits<float>::max(),
+        std::numeric_limits<float>::max(),
+        maxHeight_,
+        1.0f));
+
+    crop_box.filter(pcl_cloud_out);
+
+    auto cloud_filtered =
+        std::make_shared<sensor_msgs::msg::PointCloud2>();
+
+    pcl_conversions::fromPCL(pcl_cloud_out, *cloud_filtered);
+
+    // Preserve the original timestamp and frame.
+    cloud_filtered->header = cloud_msg->header;
+
+    return cloud_filtered;
 }

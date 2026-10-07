@@ -22,7 +22,7 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'debug_mode',
-            default_value='true',
+            default_value='false',
             description='Enable raw-image debug overlay subscription and publisher',
         ),
         Node(

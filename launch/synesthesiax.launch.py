@@ -26,12 +26,12 @@ def generate_launch_description():
     return LaunchDescription([
         DeclareLaunchArgument(
             'front_debug_mode',
-            default_value='true',
+            default_value='false',
             description='Enable front raw-image debug overlay subscription and publisher',
         ),
         DeclareLaunchArgument(
             'back_debug_mode',
-            default_value='true',
+            default_value='false',
             description='Enable back raw-image debug overlay subscription and publisher',
         ),
 
@@ -56,12 +56,18 @@ def generate_launch_description():
                     'overlay_topic': '/synesthesiax/frontside_cloud_onto_img',
                     'class_cloud_topic_prefix': '/synesthesiax/front/class',
 
+                    # --- fail-safe cloud (no cameras) ---
+                    'failsafe_cloud_topic': '/ground_segmentation/obstacle_points',
+
                     # --- projector params ---
                     'max_range': 20.0,
                     'min_range': 1.0,
+                    'max_height': 1.5,
+                    'min_height': -1.5,
                     'max_ang_fov': 60.0,
                     'min_ang_fov': -60.0,
                     'enable_range_filter': True,
+                    'enable_height_filter': True,
                     'enable_fov_filter': True,
                     'require_positive_x': True,
 
@@ -91,12 +97,21 @@ def generate_launch_description():
                     'overlay_topic': '/synesthesiax/backside_cloud_onto_img',
                     'class_cloud_topic_prefix': '/synesthesiax/back/class',
 
+                    # --- fail-safe cloud (no cameras) ---
+                    'failsafe_cloud_topic': '/dummy_not_used',
+
                     # --- projector params ---
                     # Back keeps the original no-filter behavior. Enable these once validated.
                     'max_range': 20.0,
                     'min_range': 1.0,
+                    'max_height': 1.5,
+                    'min_height': -1.5,
                     'max_ang_fov': 180.0,
                     'min_ang_fov': -180.0,
+                    'enable_range_filter': True,
+                    'enable_height_filter': True,
+                    'enable_fov_filter': True,
+                    'require_positive_x': True,
                     'enable_range_filter': False,
                     'enable_fov_filter': False,
                     'require_positive_x': False,

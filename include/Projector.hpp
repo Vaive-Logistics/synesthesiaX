@@ -9,6 +9,10 @@
 
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
+#include <pcl/filters/crop_box.h>
+#include <pcl/PCLPointCloud2.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <limits>
 
 #include <opencv2/opencv.hpp>
 
@@ -33,8 +37,10 @@ public:
 
   bool init(
       double min_range, double max_range,
+      double min_height, double max_height,
       double min_ang_fov, double max_ang_fov,
       bool enable_range_filter,
+      bool enable_height_filter,
       bool enable_fov_filter,
       bool require_positive_x,
       const std::vector<double>& camera_matrix,
@@ -62,8 +68,12 @@ public:
 
   const cv::Mat& getDepthMap();
 
+  sensor_msgs::msg::PointCloud2::ConstSharedPtr filterPointCloudByHeight(
+      const sensor_msgs::msg::PointCloud2::ConstSharedPtr& cloud_msg);
+
 private:
   void filterPointCloud(const pcl::PointCloud<pcl::PointXYZ>& cloud_in);
+
   void createDepthBuffers();
 
   // Pack RGB to 24-bit key for fast hash lookup.
@@ -110,8 +120,11 @@ private:
 
   // Filtering params
   double minRange_ = 0.5, maxRange_ = 30.0;
+  double minHeight_ = -std::numeric_limits<double>::infinity();
+  double maxHeight_ = std::numeric_limits<double>::infinity();
   double minAngFOV_ = -45.0, maxAngFOV_ = 45.0;
   bool enableRangeFilter_ = true;
+  bool enableHeightFilter_ = true;
   bool enableFovFilter_ = true;
   bool requirePositiveX_ = true;
 
